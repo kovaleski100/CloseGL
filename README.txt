@@ -5,3 +5,6 @@ A maneira mais fácil de compilar esse código é utilizando CMake. O diretório
 Depois disso o projeto deve estar pronto para ser compilado na pasta que vocês selecionaram ("/build"). Caso estejam usando o Visual Studio, não se esqueçam de mudar o projeto de startup da solução para CMP143.
 
 Obs: Caso você estiver usando um Mac você provavelmente terá problemas rodando esse código. A Apple descontinuou o OpenGL desde a versão 4.1, então qualquer função mais recente do que isso não funcionará.
+
+
+git pass: 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

@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include "imgui/imgui.h"
 
+
 #include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <iostream>
@@ -17,6 +18,8 @@
 #define BUFFER_OFFSET(a) ((void *)(a))
 
 using namespace std;
+
+using namespace ImGui;
 
 typedef struct
 {
@@ -156,8 +159,8 @@ GLuint BuildTriangles()
         //    X      Y     Z     W
         -0.5f, -0.5f, 0.0f, 1.0f,
         0.5f, -0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 0.0f, 1.0f};
-
+        0.0f, 0.5f, 0.0f, 1.0f
+        };
     GLuint VBO_NDC_coefficients_id;
     glGenBuffers(1, &VBO_NDC_coefficients_id);
     GLuint vertex_array_object_id;
@@ -173,18 +176,9 @@ GLuint BuildTriangles()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     GLfloat color_coefficients[] = {
         //  R     G     B     A
-        1.0f,
-        0.0f,
-        0.0f,
-        1.0f,
-        0.0f,
-        1.0f,
-        0.0f,
-        1.0f,
-        0.0f,
-        0.0f,
-        1.0f,
-        1.0f,
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f,
     };
     GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
@@ -230,29 +224,13 @@ int main(int argc, char **argv)
 {
     glfwInit();
 
-    GLFWwindow *window = glfwCreateWindow(800, 600, "CMP143", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
 
     glfwMakeContextCurrent(window);
     glewInit();
 
     glGenVertexArrays(NumVAOs, VAOs);
     glBindVertexArray(VAOs[Triangles]);
-
-    /*
-    GLfloat  vertices[NumVertices][2] = {
-        { -0.90f, -0.90f }, {  0.90f, -0.90f }, { -0.0f,  0.85f }// Triangle 2
-    };
-
-    glCreateBuffers(NumBuffers, Buffers);
-    glBindBuffer(GL_ARRAY_BUFFER, Buffers[ArrayBuffer]);
-    glBufferStorage(GL_ARRAY_BUFFER, sizeof(vertices), vertices, 0);
-
-    GLfloat color_coefficients[] = {
-    //  R     G     B     A
-        1.0f, 0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-    };*/
 
     GLuint vertex_array_object_id = BuildTriangles();
 
@@ -268,25 +246,11 @@ int main(int argc, char **argv)
                           GL_FALSE, 0, BUFFER_OFFSET(0));
     //glEnableVertexAttribArray(vPosition);
 
-    char buf[30];
-    float f;
 
     while (!glfwWindowShouldClose(window))
     {
         static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-
-        ImGui::Begin("My window"); // create window
-        if (ImGui::Button("Load"))
-        {
-            // call your loading code
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Save"))
-        {
-            // call your saving code
-        }
-        ImGui::End();
-
+         
         glClearBufferfv(GL_COLOR, 0, black);
 
         glUseProgram(program);
