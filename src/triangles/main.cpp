@@ -7,7 +7,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include "imgui/imgui.h"
-
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_impl_glfw_gl3.h"
 
 #include <GLFW/glfw3.h>
 #include <cstdlib>
@@ -159,8 +161,7 @@ GLuint BuildTriangles()
         //    X      Y     Z     W
         -0.5f, -0.5f, 0.0f, 1.0f,
         0.5f, -0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 0.0f, 1.0f
-        };
+        0.0f, 0.5f, 0.0f, 1.0f};
     GLuint VBO_NDC_coefficients_id;
     glGenBuffers(1, &VBO_NDC_coefficients_id);
     GLuint vertex_array_object_id;
@@ -224,10 +225,43 @@ int main(int argc, char **argv)
 {
     glfwInit();
 
+    // GL 3.0 + GLSL 130
+    const char *glsl_version = "#version 130";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+
     GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
+
+    if (window == NULL)
+        return 1;
+
+    GLFWwindow *interface = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
 
     glfwMakeContextCurrent(window);
     glewInit();
+
+
+    glfwMakeContextCurrent(interface);
+    IMGUI_CHECKVERSION();
+
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(interface, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui::StyleColorsDark();
+
+
+    ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
+
+    glfwMakeContextCurrent(window);
 
     glGenVertexArrays(NumVAOs, VAOs);
     glBindVertexArray(VAOs[Triangles]);
@@ -246,23 +280,59 @@ int main(int argc, char **argv)
                           GL_FALSE, 0, BUFFER_OFFSET(0));
     //glEnableVertexAttribArray(vPosition);
 
-
-    while (!glfwWindowShouldClose(window))
+    
+    std::cout<< glsl_version;
+    while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
         static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-         
+
         glClearBufferfv(GL_COLOR, 0, black);
 
         glUseProgram(program);
-
+        glfwMakeContextCurrent(window);
         glBindVertexArray(vertex_array_object_id);
         //glBindVertexArray(VAOs[Triangles]);
         //glDrawArrays(GL_TRIANGLES, 0, NumVertices);
         glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_BYTE, 0);
 
+        
+
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+
+
+        glfwMakeContextCurrent(interface);
+
+        //static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+        glClearBufferfv(GL_COLOR, 0, black);
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("My window"); // create window
+        if (ImGui::Button("Load"))
+        {
+            // call your loading code
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Save"))
+        {
+            // call your saving code
+        }
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(interface);
+        glfwMakeContextCurrent(window);
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwDestroyWindow(window);
 
