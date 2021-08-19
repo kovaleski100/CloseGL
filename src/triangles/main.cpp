@@ -16,6 +16,7 @@
 #include <iostream>
 #include <bits/stdc++.h>
 #include <string>
+#include <X11/Xlib.h>
 
 #define BUFFER_OFFSET(a) ((void *)(a))
 
@@ -221,6 +222,55 @@ GLuint BuildTriangles()
     return vertex_array_object_id;
 }
 
+void GUi_interface(GLFWwindow *interface)
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::Begin("My window"); // create window
+    if (ImGui::Button("Load"))
+    {
+        // call your loading code
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Save"))
+    {
+        // call your saving code
+    }
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    glfwSwapBuffers(interface);
+}
+
+void set_windowPos(GLFWwindow *interface, GLFWwindow *window)
+{
+    int width;
+    int height;
+
+    glfwGetWindowPos(window, &width, &height);
+    glfwSetWindowPos(interface, width + 850, height);
+}
+
+void Imgui_init(GLFWwindow *interface, const char *glsl_version)
+{
+    IMGUI_CHECKVERSION();
+
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(interface, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui::StyleColorsDark();
+}
+
 int main(int argc, char **argv)
 {
     glfwInit();
@@ -237,29 +287,19 @@ int main(int argc, char **argv)
     if (window == NULL)
         return 1;
 
-    GLFWwindow *interface = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
+    GLFWwindow *interface = glfwCreateWindow(200, 300, "Triangles", NULL, NULL);
+
+    set_windowPos(interface, window);
+    
 
     glfwMakeContextCurrent(window);
     glewInit();
 
-
     glfwMakeContextCurrent(interface);
-    IMGUI_CHECKVERSION();
+    
+    Imgui_init(interface, glsl_version);
 
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(interface, true);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-    ImGui::StyleColorsDark();
-
-
-    ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
+    //ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
 
     glfwMakeContextCurrent(window);
 
@@ -280,8 +320,6 @@ int main(int argc, char **argv)
                           GL_FALSE, 0, BUFFER_OFFSET(0));
     //glEnableVertexAttribArray(vPosition);
 
-    
-    std::cout<< glsl_version;
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
         static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -308,25 +346,8 @@ int main(int argc, char **argv)
 
         glClearBufferfv(GL_COLOR, 0, black);
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+        GUi_interface(interface);
 
-        ImGui::Begin("My window"); // create window
-        if (ImGui::Button("Load"))
-        {
-            // call your loading code
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Save"))
-        {
-            // call your saving code
-        }
-        ImGui::End();
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        glfwSwapBuffers(interface);
         glfwMakeContextCurrent(window);
     }
 
