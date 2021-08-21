@@ -10,9 +10,17 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw_gl3.h"
+#include "Myobj.cpp"
 
-#include <GLFW/glfw3.h>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <cstdlib>
+#include <string>
 #include <iostream>
 #include <bits/stdc++.h>
 #include <string>
@@ -36,20 +44,49 @@ enum VAO_IDs
     Triangles,
     NumVAOs
 };
+
 enum Buffer_IDs
 {
-    ArrayBuffer,
-    NumBuffers
+    VtxBuffer = 0,
+    NormBuffer = 1,
+    NumBuffers = 2
 };
 enum Attrib_IDs
 {
-    vPosition = 0
+    vPosition = 0,
+    vNormalVertex = 1
 };
 
-GLuint VAOs[NumVAOs];
 GLuint Buffers[NumBuffers];
+GLuint NumVertices;
 
-const GLuint NumVertices = 3;
+GLint model_uniform;
+GLint view_uniform;
+GLint projection_uniform;
+
+glm::mat4 Projection;
+glm::mat4 View;
+glm::mat4 Model;
+glm::mat4 ModelViewIT;
+
+float g_CameraTheta = 0.0f;    // Ângulo no plano ZX em relação ao eixo Z
+float g_CameraPhi = 0.0f;      // Ângulo em relação ao eixo Y
+float g_CameraDistance = 3.5f; // Distância da câmera para a origem
+
+float g_TorsoPositionX = 0.0f;
+float g_TorsoPositionY = 0.0f;
+
+float pos = 10.0f;
+
+glm::vec3 camera_position_c = glm::vec3(pos, pos, pos);
+glm::vec3 camera_lookat_l = glm::vec3(10.0f, 1.0f, 10.0f);
+glm::vec3 camera_up_vector = glm::vec3(0.0f, 1.0f, 0.0f);
+glm::vec3 camera_view_vector;
+
+double g_LastCursorPosX, g_LastCursorPosY;
+bool g_LeftMouseButtonPressed = false;
+bool g_RightMouseButtonPressed = false;  // Análogo para botão direito do mouse
+bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
 
 static const GLchar *
 ReadShader(const char *filename)
@@ -155,94 +192,42 @@ GLuint LoadShaders(ShaderInfo *shaders)
     return program;
 }
 
-GLuint BuildTriangles()
+GLuint BuildTriangles(MyObj *obj_load)
 {
 
-    GLfloat NDC_coefficients[] = {
-        //    X      Y     Z     W
-        -0.5f, -0.5f, 0.0f, 1.0f,
-        0.5f, -0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 0.0f, 1.0f};
-    GLuint VBO_NDC_coefficients_id;
-    glGenBuffers(1, &VBO_NDC_coefficients_id);
-    GLuint vertex_array_object_id;
-    glGenVertexArrays(1, &vertex_array_object_id);
-    glBindVertexArray(vertex_array_object_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_NDC_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(NDC_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(NDC_coefficients), NDC_coefficients);
-    GLuint location = 0;            // "(location = 0)" em "shader_vertex.glsl"
-    GLint number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
-    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(location);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    GLfloat color_coefficients[] = {
-        //  R     G     B     A
-        1.0f, 0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-    };
-    GLuint VBO_color_coefficients_id;
-    glGenBuffers(1, &VBO_color_coefficients_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
-    location = 1;             // "(location = 1)" em "shader_vertex.glsl"
-    number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
-    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(location);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    GLubyte indices[] = {0, 1, 2}; // GLubyte: valores entre 0 e 255 (8 bits sem sinal).
-    GLuint indices_id;
-    glGenBuffers(1, &indices_id);
-
-    // "Ligamos" o buffer. Note que o tipo agora é GL_ELEMENT_ARRAY_BUFFER.
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
-
-    // Alocamos memória para o buffer.
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
-
-    // Copiamos os valores do array indices[] para dentro do buffer.
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
-
-    // NÃO faça a chamada abaixo! Diferente de um VBO (GL_ARRAY_BUFFER), um
-    // array de índices (GL_ELEMENT_ARRAY_BUFFER) não pode ser "desligado",
-    // caso contrário o VAO irá perder a informação sobre os índices.
+    GLuint VAO;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
     //
-    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // XXX Errado!
+    //   Create buffers for vertices and normals
     //
+    glCreateBuffers(NumBuffers, Buffers);
+    //
+    //   Bind the vextex buffer, allocate storage for it, and load the vertex coordinates. Then,
+    //   bind the normal buffer, allocate storage and load normal coordinates
+    //
+    glBindBuffer(GL_ARRAY_BUFFER, Buffers[VtxBuffer]);
+    glBufferStorage(GL_ARRAY_BUFFER, obj_load->NumTris * 9 * sizeof(GL_FLOAT), obj_load->Vert, GL_DYNAMIC_STORAGE_BIT); // Vert is the array with coordinates of
+                                                                                                                        // the vertices created after reading the file
+    glVertexAttribPointer(vPosition, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+    glEnableVertexAttribArray(vPosition);
+    //
+    glBindBuffer(GL_ARRAY_BUFFER, Buffers[NormBuffer]);
+    glBufferStorage(GL_ARRAY_BUFFER, obj_load->NumTris * 9 * sizeof(GL_FLOAT),
+                    obj_load->Vert_Normal, GL_DYNAMIC_STORAGE_BIT); // Vert_Normal is the
+                                                                    // array with vertex normals  created after reading the file
 
-    // "Desligamos" o VAO, evitando assim que operações posteriores venham a
-    // alterar o mesmo. Isso evita bugs.
+    glVertexAttribPointer(vNormalVertex, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+    glEnableVertexAttribArray(vNormalVertex);
+
+    //
+    //  set the number of vertices, which will be used in the openglDisplay function for calling
+    //  glDrawArrays
+    //
     glBindVertexArray(0);
+    NumVertices = obj_load->NumTris * 3;
 
-    // Retornamos o ID do VAO. Isso é tudo que será necessário para renderizar
-    // os triângulos definidos acima. Veja a chamada glDrawElements() em main().
-    return vertex_array_object_id;
-}
-
-void GUi_interface(GLFWwindow *interface)
-{
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    ImGui::Begin("My window"); // create window
-    if (ImGui::Button("Load"))
-    {
-        // call your loading code
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Save"))
-    {
-        // call your saving code
-    }
-    ImGui::End();
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    glfwSwapBuffers(interface);
+    return VAO;
 }
 
 void set_windowPos(GLFWwindow *interface, GLFWwindow *window)
@@ -290,63 +275,113 @@ int main(int argc, char **argv)
     GLFWwindow *interface = glfwCreateWindow(200, 300, "Triangles", NULL, NULL);
 
     set_windowPos(interface, window);
-    
 
     glfwMakeContextCurrent(window);
     glewInit();
 
     glfwMakeContextCurrent(interface);
-    
+
     Imgui_init(interface, glsl_version);
 
     //ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
 
     glfwMakeContextCurrent(window);
 
-    glGenVertexArrays(NumVAOs, VAOs);
-    glBindVertexArray(VAOs[Triangles]);
+    MyObj *obj_load = new MyObj();
 
-    GLuint vertex_array_object_id = BuildTriangles();
+    //char *filename = "cow_up.in";
+    char filename[20] = "cube.in", filenameAux[20] = "";
+
+    obj_load->load_obj(filename);
+
+    //int NumVertices_Obj = BuildTriangles(obj_load);
 
     ShaderInfo shaders[] =
         {
-            {GL_VERTEX_SHADER, "../../triangles.vert"},
-            {GL_FRAGMENT_SHADER, "../../triangles.frag"},
+            {GL_VERTEX_SHADER, "../../vert.glsl"},
+            {GL_FRAGMENT_SHADER, "../../frag.glsl"},
             {GL_NONE, NULL}};
 
     GLuint program = LoadShaders(shaders);
 
-    glVertexAttribPointer(vPosition, 2, GL_FLOAT,
-                          GL_FALSE, 0, BUFFER_OFFSET(0));
-    //glEnableVertexAttribArray(vPosition);
+    model_uniform = glGetUniformLocation(program, "model");           // Variável da matriz "model"
+    view_uniform = glGetUniformLocation(program, "view");             // Variável da matriz "view" em shader_vertex.glsl
+    projection_uniform = glGetUniformLocation(program, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
 
+    //glVertexAttribPointer(vPosition, 2, GL_FLOAT,
+    //                      GL_FALSE, 0, BUFFER_OFFSET(0));
+    //glEnableVertexAttribArray(vPosition);
+    GLuint VAO = BuildTriangles(obj_load);
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
-        static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+        static const float black[] = {0.0f, 1.0f, 1.0f, 0.0f};
 
         glClearBufferfv(GL_COLOR, 0, black);
 
         glUseProgram(program);
         glfwMakeContextCurrent(window);
-        glBindVertexArray(vertex_array_object_id);
-        //glBindVertexArray(VAOs[Triangles]);
-        //glDrawArrays(GL_TRIANGLES, 0, NumVertices);
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_BYTE, 0);
 
-        
+        View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
+
+        //printf("min posx = %f, posy = %f, posz = %f\n", obj_load->bbox_min.x, obj_load->bbox_min.y, obj_load->bbox_min.z);
+        //printf("max posx = %f, posy = %f, posz = %f\n", obj_load->bbox_max.x, obj_load->bbox_max.y, obj_load->bbox_max.z);
+        //glBindVertexArray(vertex_array_object_id);
+
+        //glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_BYTE, 0);
+
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, NumVertices);
+        printf("max posx = %f, posy = %f, posz = %f\n", obj_load->bbox_middle.x, obj_load->bbox_middle.y, obj_load->bbox_middle.z);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
 
+        Projection = glm::perspective(glm::radians(45.0f), 16.0f / 9.0f, 0.1f, 300000.f);
 
+        glm::mat4 model = glm::mat4(1.0);
+
+        ModelViewIT = glm::transpose(glm::inverse(View * model));
+
+        glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(View));
+        glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(Projection));
+        glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
         glfwMakeContextCurrent(interface);
 
         //static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
 
-        glClearBufferfv(GL_COLOR, 0, black);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-        GUi_interface(interface);
+        ImGui::Begin("My window"); // create window
+        ImGui::InputText("obj", filenameAux, 20);
+        ImGui::NewLine();
+        if (ImGui::Button("Load"))
+        {
+            strcpy(filename,filenameAux);
+            obj_load->load_obj(filename);
+            VAO = BuildTriangles(obj_load);
+            // call your loading code
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reload Shaders"))
+        {
+            ShaderInfo shadersAux[] =
+            {
+            {GL_VERTEX_SHADER, "../../vert.glsl"},
+            {GL_FRAGMENT_SHADER, "../../frag.glsl"},
+            {GL_NONE, NULL}};
+            program = LoadShaders(shadersAux);
+            glUseProgram(program);
+        }
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(interface);
+
+        glClearBufferfv(GL_COLOR, 0, black);
 
         glfwMakeContextCurrent(window);
     }
