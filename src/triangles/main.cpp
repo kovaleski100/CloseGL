@@ -25,6 +25,7 @@
 #include <bits/stdc++.h>
 #include <string>
 #include <X11/Xlib.h>
+#include <math.h>
 
 #define BUFFER_OFFSET(a) ((void *)(a))
 
@@ -78,8 +79,9 @@ float g_TorsoPositionY = 0.0f;
 
 float pos = 10.0f;
 
-glm::vec3 camera_position_c = glm::vec3(pos, pos, pos);
-glm::vec3 camera_lookat_l = glm::vec3(10.0f, 1.0f, 10.0f);
+glm::vec3 camera_position_c = glm::vec3(0, 0, 0);
+glm::vec3 camera_position_O = glm::vec3(0, 0, 0);
+glm::vec3 camera_lookat_l = glm::vec3(0, 0.0f, 0.0f);
 glm::vec3 camera_up_vector = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 camera_view_vector;
 
@@ -87,6 +89,30 @@ double g_LastCursorPosX, g_LastCursorPosY;
 bool g_LeftMouseButtonPressed = false;
 bool g_RightMouseButtonPressed = false;  // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
+
+void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode)
+{
+if (key == GLFW_KEY_W)
+    {
+        float inc = 0.05f;
+        camera_position_c += inc* camera_lookat_l;
+    }
+    if (key == GLFW_KEY_S)
+    {
+        float inc = 0.05f;
+        camera_position_c -= inc* camera_lookat_l;
+    }
+    if (key == GLFW_KEY_A)
+    {
+        float inc = 0.05f;
+        camera_position_c -= inc* glm::cross(camera_lookat_l,camera_up_vector);
+    }
+    if (key == GLFW_KEY_D)
+    {
+        float inc = 0.05f;
+        camera_position_c += inc* glm::cross(camera_lookat_l,camera_up_vector);
+    }
+}
 
 static const GLchar *
 ReadShader(const char *filename)
@@ -239,8 +265,33 @@ void set_windowPos(GLFWwindow *interface, GLFWwindow *window)
     glfwSetWindowPos(interface, width + 850, height);
 }
 
-void Imgui_init(GLFWwindow *interface, const char *glsl_version)
+int main(int argc, char **argv)
 {
+    glfwInit();
+
+    // GL 3.0 + GLSL 130
+    const char *glsl_version = "#version 130";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+
+    GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
+    glfwSetKeyCallback(window, KeyCallback);
+
+
+    if (window == NULL)
+        return 1;
+
+    GLFWwindow *interface = glfwCreateWindow(300, 400, "Options", NULL, NULL);
+
+    set_windowPos(interface, window);
+
+    glfwMakeContextCurrent(window);
+    glewInit();
+
+    glfwMakeContextCurrent(interface);
+
     IMGUI_CHECKVERSION();
 
     ImGui::CreateContext();
@@ -254,34 +305,6 @@ void Imgui_init(GLFWwindow *interface, const char *glsl_version)
     ImGui_ImplGlfw_InitForOpenGL(interface, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
     ImGui::StyleColorsDark();
-}
-
-int main(int argc, char **argv)
-{
-    glfwInit();
-
-    // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-
-    GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
-
-    if (window == NULL)
-        return 1;
-
-    GLFWwindow *interface = glfwCreateWindow(200, 300, "Triangles", NULL, NULL);
-
-    set_windowPos(interface, window);
-
-    glfwMakeContextCurrent(window);
-    glewInit();
-
-    glfwMakeContextCurrent(interface);
-
-    Imgui_init(interface, glsl_version);
 
     //ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
 
@@ -289,8 +312,8 @@ int main(int argc, char **argv)
 
     MyObj *obj_load = new MyObj();
 
-    //char *filename = "cow_up.in";
-    char filename[20] = "cube.in", filenameAux[20] = "";
+    char *filename = "cow_up.in",filenameAux[20] = "";
+    //char filename[20] = "cube.in", filenameAux[20] = "";
 
     obj_load->load_obj(filename);
 
@@ -312,15 +335,38 @@ int main(int argc, char **argv)
     //                      GL_FALSE, 0, BUFFER_OFFSET(0));
     //glEnableVertexAttribArray(vPosition);
     GLuint VAO = BuildTriangles(obj_load);
+
+    camera_position_c.x = obj_load->bbox_middle.x;
+    camera_position_c.y = obj_load->bbox_middle.y;
+    camera_position_c.z = 2*std::max((obj_load->bbox_max.y - obj_load->bbox_min.y)*(1.0/tan(45)),(obj_load->bbox_max.x - obj_load->bbox_min.x)*(1.0/tan(45)));
+
+    camera_position_O = camera_position_c;
+
+    int lookAt = 0;
+    int axis = 0;
+    float near = 0.1;
+    float far = 3000;
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
-        static const float black[] = {0.0f, 1.0f, 1.0f, 0.0f};
+        static const float black[] = {1.0f, 1.0f, 1.0f, 0.0f};
 
         glClearBufferfv(GL_COLOR, 0, black);
 
         glUseProgram(program);
         glfwMakeContextCurrent(window);
+        
+        camera_lookat_l = obj_load->bbox_middle - camera_position_c;
+        //camera_lookat_l = glm::normalize(camera_lookat_l);
 
+        /*
+        switch(axis)
+        {
+            case 0:
+
+                glm::translate(glm::mat4(1.0f),camera_position_c);
+            break;
+        }
+        */
         View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
 
         //printf("min posx = %f, posy = %f, posz = %f\n", obj_load->bbox_min.x, obj_load->bbox_min.y, obj_load->bbox_min.z);
@@ -331,12 +377,13 @@ int main(int argc, char **argv)
 
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, NumVertices);
-        printf("max posx = %f, posy = %f, posz = %f\n", obj_load->bbox_middle.x, obj_load->bbox_middle.y, obj_load->bbox_middle.z);
+        printf("max %f\n", sqrt(pow(camera_position_c.x-obj_load->bbox_middle.x,2) + pow(camera_position_c.y-obj_load->bbox_middle.y,2) + pow(camera_position_c.z-obj_load->bbox_middle.z,2)));
+        //printf("min posx = %f, posy = %f, posz = %f\nf", obj_load->bbox_min.x, obj_load->bbox_min.y, obj_load->bbox_min.z);
+        //printf("Tamx = %f, Tamy = %f, Tamz = %f\n", scalax, scalay, scalaz);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-
-        Projection = glm::perspective(glm::radians(45.0f), 16.0f / 9.0f, 0.1f, 300000.f);
+        Projection = glm::perspective(glm::radians(45.0f), 16.0f / 9.0f, near, far);
 
         glm::mat4 model = glm::mat4(1.0);
 
@@ -357,23 +404,18 @@ int main(int argc, char **argv)
         ImGui::Begin("My window"); // create window
         ImGui::InputText("obj", filenameAux, 20);
         ImGui::NewLine();
-        if (ImGui::Button("Load"))
+        ImGui::RadioButton("Look At", &lookAt,1 );
+        ImGui::NewLine();
+        ImGui::RadioButton("Free", &lookAt,0 );
+        ImGui::Text("clipping planes");
+        ImGui::NewLine();
+        ImGui::InputFloat("Near",&near);
+        ImGui::NewLine();
+        ImGui::InputFloat("Far",&far);
+        ImGui::NewLine();
+        if (ImGui::Button("Reset camera position"))
         {
-            strcpy(filename,filenameAux);
-            obj_load->load_obj(filename);
-            VAO = BuildTriangles(obj_load);
-            // call your loading code
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Reload Shaders"))
-        {
-            ShaderInfo shadersAux[] =
-            {
-            {GL_VERTEX_SHADER, "../../vert.glsl"},
-            {GL_FRAGMENT_SHADER, "../../frag.glsl"},
-            {GL_NONE, NULL}};
-            program = LoadShaders(shadersAux);
-            glUseProgram(program);
+            camera_position_c = camera_position_O;
         }
         ImGui::End();
 
