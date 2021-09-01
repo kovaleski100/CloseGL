@@ -78,7 +78,11 @@ float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
 float g_TorsoPositionX = 0.0f;
 float g_TorsoPositionY = 0.0f;
+float MouseDX = 0.0f;
+float MouseDY = 0.0f;
 float pos = 10.0f;
+
+float pitch, yaw, roll;
 
 int lookAt;
 int axis;
@@ -88,10 +92,13 @@ MyObj *obj_load = new MyObj();
 
 glm::vec3 camera_position_c = glm::vec3(0, 0, 0);
 glm::vec3 camera_position_O = glm::vec3(0, 0, 0);
+glm::vec3 camera_lookat_l_O = glm::vec3(0, 0.0f, 0.0f);
+glm::vec3 camera_up_vector_O = glm::vec3(0, 0, 0);
 glm::vec3 camera_lookat_l = glm::vec3(0, 0.0f, 0.0f);
 glm::vec3 camera_up_vector = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 camera_side_vector;
-glm::vec3 Color_model = glm::vec3(1,0,0);
+glm::vec3 Color_model = glm::vec3(1, 0, 0);
+glm::vec3 direction;
 
 double g_LastCursorPosX, g_LastCursorPosY;
 bool g_LeftMouseButtonPressed = false;
@@ -101,7 +108,7 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
 
-    float inc = 0.05f;
+    float inc = 10.0f;
     if (key == GLFW_KEY_W)
     {
         camera_position_c += inc * camera_lookat_l;
@@ -112,13 +119,22 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode
     }
     if (key == GLFW_KEY_A)
     {
-        camera_position_c -= inc * glm::cross(camera_lookat_l, camera_up_vector);
+        camera_position_c -= inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
     }
     if (key == GLFW_KEY_D)
     {
-        camera_position_c += inc * glm::cross(camera_lookat_l, camera_up_vector);
+        camera_position_c += inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
     }
-    
+    if(key == GLFW_KEY_Q)
+    {
+        camera_position_c += inc * camera_up_vector;
+    }
+    if(key == GLFW_KEY_E)
+    {
+        camera_position_c -= inc * camera_up_vector;
+    }
+    camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
+    camera_up_vector = -glm::normalize(glm::cross(camera_lookat_l, glm::cross(camera_lookat_l,camera_up_vector)));
 }
 
 void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
@@ -188,19 +204,38 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         float dy = ypos - g_LastCursorPosY;
 
         // Atualizamos parâmetros da câmera com os deslocamentos
-        g_CameraTheta -= 0.01f * dx;
-        g_CameraPhi += 0.01f * dy;
+
+        float sens = 0.2;
+
+        yaw = sens * dx;
+        pitch = sens * dy;
 
         // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
         float phimax = 3.141592f / 2;
         float phimin = -phimax;
 
-        if (g_CameraPhi > phimax)
-            g_CameraPhi = phimax;
+        if (!translate)
+        {
+            if (axis == X)
+            {
+                direction.x = camera_lookat_l.x;
+                direction.y = camera_lookat_l.y * glm::cos(glm::radians(pitch)) - camera_lookat_l.z * glm::sin(glm::radians(pitch));
+                direction.z = camera_lookat_l.y * glm::sin(glm::radians(pitch)) + camera_lookat_l.z * glm::cos(glm::radians(pitch));
+            }
+            if (axis == Y)
+            {
+                direction.x = camera_lookat_l.x * glm::cos(glm::radians(yaw)) - camera_lookat_l.z * glm::sin(glm::radians(yaw));
 
-        if (g_CameraPhi < phimin)
-            g_CameraPhi = phimin;
+                direction.y = camera_lookat_l.y;
 
+                direction.z = camera_lookat_l.x * glm::sin(glm::radians(yaw)) + camera_lookat_l.z * glm::cos(glm::radians(yaw));
+            }
+            if (axis == Z)
+            {
+                glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(-pitch), camera_lookat_l);
+                camera_up_vector = glm::mat3(roll_mat) * camera_up_vector;
+            }
+        }
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -213,65 +248,6 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
 
-        if (lookAt)
-        {
-            //camera_position_c = (camera_position_c - glm::vec3(0,0,0)) + obj_load->bbox_middle;
-            //View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
-            if (!translate)
-            {
-                if (axis == X)
-                {
-                    printf("side");
-                    camera_side_vector = glm::cross(camera_lookat_l, camera_up_vector);
-                    View = glm::rotate(View, dx * .01f, camera_side_vector);
-                    View = glm::rotate(View, dy * .01f, glm::cross(camera_lookat_l, camera_up_vector));
-                }
-                else if (axis == Y)
-                {
-                    printf("camera_up_vector");
-                    View = glm::rotate(View, dx * .01f, camera_up_vector);
-                    View = glm::rotate(View, dy * .01f, camera_up_vector);
-                }
-                else if (axis == Z)
-                {
-                    printf("camera_lookat");
-                    View = glm::rotate(View, dx * .01f, camera_lookat_l);
-                    View = glm::rotate(View, dy * .01f, camera_lookat_l);
-                }
-            }
-        }
-        else
-        {
-            if (!translate)
-            {
-                if (axis == X)
-                {
-                    printf("side");
-                    camera_side_vector = glm::cross(camera_lookat_l, camera_up_vector);
-                    View = glm::rotate(View, dx * .01f, camera_side_vector);
-                    View = glm::rotate(View, dy * .01f, glm::cross(camera_lookat_l, camera_up_vector));
-                }
-                else if (axis == Y)
-                {
-                    printf("camera_up_vector");
-                    View = glm::rotate(View, dx * .01f, camera_up_vector);
-                    View = glm::rotate(View, dy * .01f, camera_up_vector);
-                }
-                else if (axis == Z)
-                {
-                    printf("camera_lookat");
-                    View = glm::rotate(View, dx * .01f, camera_lookat_l);
-                    View = glm::rotate(View, dy * .01f, camera_lookat_l);
-                }
-            }
-
-            //glm::vec3 side = glm::cross(camera_up_vector,camera_lookat_l);
-
-            //camera_up_vector = -camera_up_vector*cos(g_CameraPhi) glm::cross(camera_lookat_l, camera_up_vector);
-            //camera_lookat_l = glm::normalize(camera_lookat_l);
-            //glm::vec3 view_cam = camera_lookat_l;
-            //View = glm::lookAt(camera_position_c, view_cam, camera_up_vector);
-        }
     }
 
     if (g_MiddleMouseButtonPressed)
@@ -450,9 +426,7 @@ int main(int argc, char **argv)
     const char *glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-
+    
     GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
     glfwSetKeyCallback(window, KeyCallback);
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
@@ -461,7 +435,7 @@ int main(int argc, char **argv)
     if (window == NULL)
         return 1;
 
-    GLFWwindow *interface = glfwCreateWindow(380, 550, "Options", NULL, NULL);
+    GLFWwindow *interface = glfwCreateWindow(450, 750, "Options", NULL, NULL);
 
     set_windowPos(interface, window);
 
@@ -477,24 +451,18 @@ int main(int argc, char **argv)
     (void)io;
 
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
+    
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(interface, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
     ImGui::StyleColorsDark();
 
-    //ImVec4 clear_color = ImVec4(0.6f, 0.3f, 0.6f, 1.00f);
-
     glfwMakeContextCurrent(window);
     glEnable(GL_DEPTH_TEST);
 
     char *filename = "cow_up.in", filenameAux[20] = "";
-    //char filename[20] = "cube.in", filenameAux[20] = "";
 
     obj_load->load_obj(filename);
-
-    //int NumVertices_Obj = BuildTriangles(obj_load);
 
     ShaderInfo shaders[] =
         {
@@ -507,11 +475,8 @@ int main(int argc, char **argv)
     model_uniform = glGetUniformLocation(program, "model");           // Variável da matriz "model"
     view_uniform = glGetUniformLocation(program, "view");             // Variável da matriz "view" em shader_vertex.glsl
     projection_uniform = glGetUniformLocation(program, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
-    model_color = glGetUniformLocation(program,"model_color");
+    model_color = glGetUniformLocation(program, "model_color");
 
-    //glVertexAttribPointer(vPosition, 2, GL_FLOAT,
-    //                      GL_FALSE, 0, BUFFER_OFFSET(0));
-    //glEnableVertexAttribArray(vPosition);
     GLuint VAO = BuildTriangles(obj_load);
 
     camera_position_c.x = obj_load->bbox_middle.x;
@@ -519,11 +484,12 @@ int main(int argc, char **argv)
     camera_position_c.z = 2 * std::max((obj_load->bbox_max.y - obj_load->bbox_min.y) * (1.0 / tan(45)), (obj_load->bbox_max.x - obj_load->bbox_min.x) * (1.0 / tan(45)));
 
     camera_position_O = camera_position_c;
-    camera_lookat_l = obj_load->bbox_middle - camera_position_c;
+    camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
+    camera_lookat_l_O = camera_lookat_l;
+    camera_up_vector_O = camera_up_vector;
 
-    camera_side_vector = glm::cross(camera_lookat_l, camera_up_vector);
+    camera_side_vector = glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
 
-    //int lookAt = 0;
     float near = 0.1;
     float far = 3000;
     int render_mode = 0;
@@ -531,7 +497,7 @@ int main(int argc, char **argv)
     int backFaceCull = 0;
     float g_ScreenRatio = 0.0f;
     float vfov = 60;
-    float hfov = (vfov*16)/9;
+    float hfov = (vfov * 16) / 9;
     View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
@@ -546,12 +512,12 @@ int main(int argc, char **argv)
             glPolygonMode(GL_FRONT, GL_FILL);
             glPolygonMode(GL_BACK, GL_FILL);
             break;
-        
+
         case 1:
             glPolygonMode(GL_FRONT, GL_LINE);
             glPolygonMode(GL_BACK, GL_LINE);
             break;
-            default:
+        default:
             glPolygonMode(GL_FRONT, GL_POINT);
             glPolygonMode(GL_BACK, GL_POINT);
             break;
@@ -559,9 +525,7 @@ int main(int argc, char **argv)
 
         glUseProgram(program);
         glfwMakeContextCurrent(window);
-        //camera_lookat_l = glm::normalize(camera_lookat_l);
-        ///printf("Axis = %d\n", axis);
-        if(ccw)
+        if (ccw)
         {
             glFrontFace(GL_CCW);
         }
@@ -569,7 +533,7 @@ int main(int argc, char **argv)
         {
             glFrontFace(GL_CW);
         }
-        if(backFaceCull)
+        if (backFaceCull)
         {
             glEnable(GL_CULL_FACE);
         }
@@ -580,48 +544,31 @@ int main(int argc, char **argv)
 
         if (lookAt)
         {
-            //camera_position_c = (camera_position_c - glm::vec3(0,0,0)) + camera_position_c;
-            //View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
-            if(translate)
+            if (translate)
             {
+
                 View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
+                camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
+                camera_side_vector = glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
+
             }
-            camera_side_vector = -glm::cross(camera_lookat_l, camera_up_vector);
         }
         else
         {
-            camera_lookat_l = -glm::cross(camera_side_vector, camera_up_vector);
-            //View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
-            if(translate)
+            if (translate)
             {
+                View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
+                direction = camera_lookat_l;
+            }
+            else
+            {
+                camera_lookat_l = direction;
                 View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
             }
         }
-        /*
-        else
-        {
-            float y = sin(g_CameraPhi);
-            float z = cos(g_CameraPhi)*cos(g_CameraTheta);
-            float x = cos(g_CameraPhi)*sin(g_CameraTheta);
-            camera_lookat_l.x += x;
-            camera_lookat_l.y += y;
-            camera_lookat_l.z += z;
-            camera_up_vector = -camera_up_vector*cos(g_CameraPhi) glm::cross(camera_lookat_l, camera_up_vector);
-            camera_lookat_l = glm::normalize(camera_lookat_l);
-            glm::vec3 view_cam = camera_lookat_l;
-            View = glm::lookAt(camera_position_c, view_cam, camera_up_vector);
-        }*/
-        //printf("min posx = %f, posy = %f, posz = %f\n", obj_load->bbox_min.x, obj_load->bbox_min.y, obj_load->bbox_min.z);
-        //printf("max posx = %f, posy = %f, posz = %f\n", obj_load->bbox_max.x, obj_load->bbox_max.y, obj_load->bbox_max.z);
-        //glBindVertexArray(vertex_array_object_id);
-
-        //glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_BYTE, 0);
 
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, NumVertices);
-        //printf("max %f\n", sqrt(pow(camera_position_c.x - obj_load->bbox_middle.x, 2) + pow(camera_position_c.y - obj_load->bbox_middle.y, 2) + pow(camera_position_c.z - obj_load->bbox_middle.z, 2)));
-        //printf("min posx = %f, posy = %f, posz = %f\nf", obj_load->bbox_min.x, obj_load->bbox_min.y, obj_load->bbox_min.z);
-        //printf("Tamx = %f, Tamy = %f, Tamz = %f\n", scalax, scalay, scalaz);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -630,16 +577,12 @@ int main(int argc, char **argv)
 
         glm::mat4 model = glm::mat4(1.0);
 
-        //ModelViewIT = glm::transpose(glm::inverse(View * model));
-
         glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(View));
         glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(Projection));
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform3fv(model_color,1,glm::value_ptr(Color_model));
+        glUniform3fv(model_color, 1, glm::value_ptr(Color_model));
 
         glfwMakeContextCurrent(interface);
-
-        //static const float black[] = {0.0f, 0.0f, 0.0f, 0.0f};
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -695,11 +638,16 @@ int main(int argc, char **argv)
         ImGui::SameLine();
         ImGui::RadioButton("off", &backFaceCull, 0);
         ImGui::NewLine();
-        ImGui::ColorEdit3("Color", (float*)&Color_model);
+        ImGui::ColorEdit3("Color", (float *)&Color_model);
         ImGui::NewLine();
         if (ImGui::Button("Reset camera position"))
         {
-            camera_position_c = camera_position_O;
+            camera_position_c.x = obj_load->bbox_middle.x;
+            camera_position_c.y = obj_load->bbox_middle.y;
+            camera_position_c.z = 2 * std::max((obj_load->bbox_max.y - obj_load->bbox_min.y) * (1.0 / tan(45)), (obj_load->bbox_max.x - obj_load->bbox_min.x) * (1.0 / tan(45)));
+            camera_lookat_l = camera_lookat_l_O;
+            direction = camera_lookat_l_O;
+            camera_up_vector = camera_up_vector_O;
         }
         ImGui::End();
 
