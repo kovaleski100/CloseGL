@@ -169,15 +169,15 @@ public:
             Vert[9 * i + 8] = Tris[i].v2.z;
 
             //    vertex normal coordinates
-            Vert_Normal[9 * i] = Tris[i].Norm[0].x;
-            Vert_Normal[9 * i + 1] = Tris[i].Norm[0].y;
-            Vert_Normal[9 * i + 2] = Tris[i].Norm[0].z;
-            Vert_Normal[9 * i + 3] = Tris[i].Norm[1].x;
-            Vert_Normal[9 * i + 4] = Tris[i].Norm[1].y;
-            Vert_Normal[9 * i + 5] = Tris[i].Norm[1].z;
-            Vert_Normal[9 * i + 6] = Tris[i].Norm[2].x;
-            Vert_Normal[9 * i + 7] = Tris[i].Norm[2].y;
-            Vert_Normal[9 * i + 8] = Tris[i].Norm[2].z;
+            Vert_Normal[9 * i] = -Tris[i].Norm[0].x;
+            Vert_Normal[9 * i + 1] = -Tris[i].Norm[0].y;
+            Vert_Normal[9 * i + 2] = -Tris[i].Norm[0].z;
+            Vert_Normal[9 * i + 3] = -Tris[i].Norm[1].x;
+            Vert_Normal[9 * i + 4] = -Tris[i].Norm[1].y;
+            Vert_Normal[9 * i + 5] = -Tris[i].Norm[1].z;
+            Vert_Normal[9 * i + 6] = -Tris[i].Norm[2].x;
+            Vert_Normal[9 * i + 7] = -Tris[i].Norm[2].y;
+            Vert_Normal[9 * i + 8] = -Tris[i].Norm[2].z;
 
             glm::vec3 bbox_diam = glm::vec3(bbox_max + bbox_min);
 		    bbox_middle = glm::vec3(bbox_diam.x/2, bbox_diam.y/2, bbox_diam.z/2);

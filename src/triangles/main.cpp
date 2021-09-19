@@ -63,9 +63,19 @@ GLuint Buffers[NumBuffers];
 GLuint NumVertices;
 
 GLint model_uniform;
+GLint model_color;
 GLint view_uniform;
 GLint projection_uniform;
-GLint model_color;
+
+
+GLint phong_uniform;
+GLint vertex_type_uniform;
+GLuint no_shade_index;
+GLint shading_uniform;
+GLuint gourAD_shade_index;
+GLuint gourADS_shade_index;
+GLuint phong_shade_index;
+GLuint* vertShades[] = {&no_shade_index, &gourAD_shade_index, &gourADS_shade_index, &phong_shade_index };
 
 glm::mat4 Projection;
 glm::mat4 View;
@@ -87,6 +97,9 @@ float pitch, yaw, roll;
 int lookAt;
 int axis;
 int translate = 1;
+int shading_index = 3;
+int phong= 1;
+
 
 MyObj *obj_load = new MyObj();
 
@@ -211,8 +224,8 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         pitch = sens * dy;
 
         // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
-        float phimax = 3.141592f / 2;
-        float phimin = -phimax;
+        //float phimax = 3.141592f / 2;
+        //float phimin = -phimax;
 
         if (!translate)
         {
@@ -245,8 +258,8 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
     if (g_LeftMouseButtonPressed)
     {
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
-        float dx = xpos - g_LastCursorPosX;
-        float dy = ypos - g_LastCursorPosY;
+        //float dx = xpos - g_LastCursorPosX;
+        //float dy = ypos - g_LastCursorPosY;
 
     }
 
@@ -364,16 +377,13 @@ GLuint LoadShaders(ShaderInfo *shaders)
             glDeleteShader(entry->shader);
             entry->shader = 0;
         }
-
         return 0;
     }
-
     return program;
 }
 
 GLuint BuildTriangles(MyObj *obj_load)
 {
-
     GLuint VAO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -405,7 +415,6 @@ GLuint BuildTriangles(MyObj *obj_load)
     //
     glBindVertexArray(0);
     NumVertices = obj_load->NumTris * 3;
-
     return VAO;
 }
 
@@ -461,6 +470,7 @@ int main(int argc, char **argv)
     glEnable(GL_DEPTH_TEST);
 
     char *filename = "cow_up.in", filenameAux[20] = "";
+    //char *filename = "cube.in", filenameAux[20] = "";
 
     obj_load->load_obj(filename);
 
@@ -476,6 +486,16 @@ int main(int argc, char **argv)
     view_uniform = glGetUniformLocation(program, "view");             // Variável da matriz "view" em shader_vertex.glsl
     projection_uniform = glGetUniformLocation(program, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
     model_color = glGetUniformLocation(program, "model_color");
+
+
+
+    vertex_type_uniform = glGetSubroutineUniformLocation(program, GL_VERTEX_SHADER, "vertex_shading_type");
+    no_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER, "none");
+    gourAD_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"gourAD");
+    gourADS_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"gourADS");
+    phong_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"phong");
+    shading_uniform = glGetUniformLocation(program, "shading_index");
+    phong_uniform = glGetUniformLocation(program, "phong");
 
     GLuint VAO = BuildTriangles(obj_load);
 
@@ -497,34 +517,34 @@ int main(int argc, char **argv)
     int backFaceCull = 0;
     float g_ScreenRatio = 0.0f;
     float vfov = 60;
-    float hfov = (vfov * 16) / 9;
+    //float hfov = (vfov * 16) / 9;
+    float hfov = vfov;
+    int shad_tipe;
     View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
-        static const float black[] = {1.0f, 1.0f, 1.0f, 0.0f};
-        glDepthMask(GL_FALSE);
+        glfwMakeContextCurrent(window);
+        static const float black[] = {1.0f, 1.0f, 1.0f, 1.0f};
+        //glDepthMask(GL_FALSE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearBufferfv(GL_COLOR, 0, black);
 
         switch (render_mode)
         {
         case 0:
-            glPolygonMode(GL_FRONT, GL_FILL);
-            glPolygonMode(GL_BACK, GL_FILL);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             break;
 
         case 1:
-            glPolygonMode(GL_FRONT, GL_LINE);
-            glPolygonMode(GL_BACK, GL_LINE);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             break;
         default:
-            glPolygonMode(GL_FRONT, GL_POINT);
-            glPolygonMode(GL_BACK, GL_POINT);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
             break;
         }
 
         glUseProgram(program);
-        glfwMakeContextCurrent(window);
+        
         if (ccw)
         {
             glFrontFace(GL_CCW);
@@ -567,12 +587,14 @@ int main(int argc, char **argv)
             }
         }
 
+        
+
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, NumVertices);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-        g_ScreenRatio = tan(glm::radians(hfov / 16)) / tan(glm::radians(vfov / 9));
+        g_ScreenRatio = tan(glm::radians(hfov / 1)) / tan(glm::radians(vfov / 1));
         Projection = glm::perspective(glm::radians(vfov), g_ScreenRatio, near, far);
 
         glm::mat4 model = glm::mat4(1.0);
@@ -581,6 +603,15 @@ int main(int argc, char **argv)
         glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(Projection));
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform3fv(model_color, 1, glm::value_ptr(Color_model));
+
+        //printf("%f, %f, %f\n", Color_model.x,Color_model.y,Color_model.z);
+        //printf("%d\n", shading_index);
+
+        glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, vertShades[shading_index]);
+        //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, vertShades[shading_index]);
+        glUniform1i(shading_uniform, shading_index);
+        glUniform1i(phong_uniform,phong);
+        //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, fragShades[frigging_index]);
 
         glfwMakeContextCurrent(interface);
 
@@ -639,6 +670,16 @@ int main(int argc, char **argv)
         ImGui::RadioButton("off", &backFaceCull, 0);
         ImGui::NewLine();
         ImGui::ColorEdit3("Color", (float *)&Color_model);
+        ImGui::NewLine();
+        ImGui::Text("shading");
+        ImGui::NewLine();
+        ImGui::RadioButton("None", &shading_index, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Gouraud Shading AD", &shading_index, 1);
+        ImGui::NewLine();
+        ImGui::RadioButton("Gouraud Shading ADS", &shading_index, 2);
+        ImGui::SameLine();
+        ImGui::RadioButton("Phong Shading", &shading_index, 3);
         ImGui::NewLine();
         if (ImGui::Button("Reset camera position"))
         {
