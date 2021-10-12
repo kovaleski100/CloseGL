@@ -11,6 +11,7 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw_gl3.h"
 #include "Myobj.cpp"
+#include "matrices.cpp"
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
@@ -67,20 +68,31 @@ GLint model_color;
 GLint view_uniform;
 GLint projection_uniform;
 
+GLint model_uniform_CL;
+GLint model_color_CL;
+GLint view_uniform_CL;
+GLint projection_uniform_CL;
 
 GLint phong_uniform;
 GLint vertex_type_uniform;
 GLuint no_shade_index;
+
+GLuint no_shade_index_F;
+
 GLint shading_uniform;
 GLuint gourAD_shade_index;
 GLuint gourADS_shade_index;
 GLuint phong_shade_index;
-GLuint* vertShades[] = {&no_shade_index, &gourAD_shade_index, &gourADS_shade_index, &phong_shade_index };
+//GLuint *vertShades[] = {&no_shade_index, &gourAD_shade_index, &gourADS_shade_index, &phong_shade_index};
 
 glm::mat4 Projection;
 glm::mat4 View;
 glm::mat4 Model;
 glm::mat4 ModelViewIT;
+
+glm::mat4 ProjectionGL;
+glm::mat4 ViewGL;
+glm::mat4 ModelGL;
 
 float g_CameraTheta = 0.0f;    // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;      // Ângulo em relação ao eixo Y
@@ -98,8 +110,7 @@ int lookAt;
 int axis;
 int translate = 1;
 int shading_index = 3;
-int phong= 1;
-
+int phong = 1;
 
 MyObj *obj_load = new MyObj();
 
@@ -120,34 +131,41 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
+    if (translate)
+    {
+        printf("botao apertado\n");
+        float inc = 10.0f;
+        if (key == GLFW_KEY_W)
+        {
+            camera_position_c += inc * camera_lookat_l;
+        }
+        if (key == GLFW_KEY_S)
+        {
+            camera_position_c -= inc * camera_lookat_l;
+        }
+        if (key == GLFW_KEY_A)
+        {
+            camera_position_c -= inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
+        }
+        if (key == GLFW_KEY_D)
+        {
+            camera_position_c += inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
+        }
+        if (key == GLFW_KEY_Q)
+        {
+            camera_position_c += inc * camera_up_vector;
+        }
+        if (key == GLFW_KEY_E)
+        {
+            camera_position_c -= inc * camera_up_vector;
+        }
+    }
 
-    float inc = 10.0f;
-    if (key == GLFW_KEY_W)
+    if (lookAt)
     {
-        camera_position_c += inc * camera_lookat_l;
+        camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
     }
-    if (key == GLFW_KEY_S)
-    {
-        camera_position_c -= inc * camera_lookat_l;
-    }
-    if (key == GLFW_KEY_A)
-    {
-        camera_position_c -= inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
-    }
-    if (key == GLFW_KEY_D)
-    {
-        camera_position_c += inc * glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
-    }
-    if(key == GLFW_KEY_Q)
-    {
-        camera_position_c += inc * camera_up_vector;
-    }
-    if(key == GLFW_KEY_E)
-    {
-        camera_position_c -= inc * camera_up_vector;
-    }
-    camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
-    camera_up_vector = -glm::normalize(glm::cross(camera_lookat_l, glm::cross(camera_lookat_l,camera_up_vector)));
+    camera_up_vector = -glm::normalize(glm::cross(camera_lookat_l, glm::cross(camera_lookat_l, camera_up_vector)));
 }
 
 void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
@@ -227,8 +245,31 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         //float phimax = 3.141592f / 2;
         //float phimin = -phimax;
 
+        if (lookAt)
+        {
+            if (axis == X)
+            {
+                direction.x = camera_lookat_l.x;
+                direction.y = camera_lookat_l.y * glm::cos(glm::radians(pitch)) - camera_lookat_l.z * glm::sin(glm::radians(pitch));
+                direction.z = camera_lookat_l.y * glm::sin(glm::radians(pitch)) + camera_lookat_l.z * glm::cos(glm::radians(pitch));
+            }
+            if (axis == Y)
+            {
+                direction.x = camera_lookat_l.x * glm::cos(glm::radians(yaw)) - camera_lookat_l.z * glm::sin(glm::radians(yaw));
+
+                direction.y = camera_lookat_l.y;
+
+                direction.z = camera_lookat_l.x * glm::sin(glm::radians(yaw)) + camera_lookat_l.z * glm::cos(glm::radians(yaw));
+            }
+            if (axis == Z)
+            {
+                glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), glm::radians(-pitch), camera_lookat_l);
+                camera_up_vector = glm::mat3(roll_mat) * camera_up_vector;
+            }
+        }
         if (!translate)
         {
+
             if (axis == X)
             {
                 direction.x = camera_lookat_l.x;
@@ -260,7 +301,6 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         //float dx = xpos - g_LastCursorPosX;
         //float dy = ypos - g_LastCursorPosY;
-
     }
 
     if (g_MiddleMouseButtonPressed)
@@ -382,6 +422,194 @@ GLuint LoadShaders(ShaderInfo *shaders)
     return program;
 }
 
+std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyObj *obj_load, int modelU, float near, float far)
+{
+    float *vert = obj_load->Vert;
+    float *ret = new float[obj_load->NumTris * 12];
+    float near_t = near;
+    float far_t = far;
+
+    Matrices *mat454 = new Matrices();
+
+    int numtris = obj_load->NumTris;
+    
+    glm::mat4 pvm = P*V*M;
+
+    //pvm = glm::transpose(pvm);
+
+    int i = 0;
+    int indi = 0, indj = 0;
+    for (int j = 0; j < obj_load->NumTris; j++)
+    {
+        indj = 9 * j;
+        float *vert = obj_load->Vert;
+        glm::vec4 v1 = glm::vec4(vert[indj + 0], vert[indj + 1], vert[indj + 2], 1.0f);
+        glm::vec4 v2 = glm::vec4(vert[indj + 3], vert[indj + 4], vert[indj + 5], 1.0f);
+        glm::vec4 v3 = glm::vec4(vert[indj + 6], vert[indj + 7], vert[indj + 8], 1.0f);
+
+        glm::vec4 v1T = pvm*v1;
+        glm::vec4 v2T = pvm*v2;
+        glm::vec4 v3T = pvm*v3;
+        
+        // if(j==0)
+        // {
+        //     mat454->print_vector(v1T);
+        //     printf("\n");
+        // }
+        //mat454->print_vector(v2T);
+        //mat454->print_vector(v3T);
+        //printf("%f, %f, %f\n",v1T.w, v2T.w, v3T.w);
+
+        if (v1T.w <= 0 || v2T.w <= 0 || v3T.w <= 0
+        //  ||   v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t 
+        //  ||     v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t
+        )
+        {
+            numtris--;
+            continue;
+        }
+
+        indi = 12 * i;
+        ret[indi + 0] = v1T.x;
+        ret[indi + 1] = v1T.y;
+        ret[indi + 2] = v1T.z;
+        ret[indi + 3] = v1T.w;
+
+        ret[indi + 4] = v2T.x;
+        ret[indi + 5] = v2T.y;
+        ret[indi + 6] = v2T.z;
+        ret[indi + 7] = v2T.w;
+
+        ret[indi + 8] = v3T.x;
+        ret[indi + 9] = v3T.y;
+        ret[indi + 10] = v3T.z;
+        ret[indi + 11] = v3T.w;
+
+        i++;
+    }
+    float* ret2 = new float[numtris*12];
+    memcpy(ret2, ret, numtris * 12*sizeof(float));
+    free(ret);
+    return std::make_tuple(ret2, numtris);
+}
+
+float *wdividi(float *PVMViC, int numtrisPVM)
+{
+    float *div = new float[numtrisPVM * 12];
+    int ind = 0;
+    for (int i = 0; i < numtrisPVM; i++)
+    {
+        ind = 12 * i;
+        //  if(i ==0)
+        //  {
+        //  printf("antes w\n");
+        //  printf("%lf ", PVMViC[ind+0]);
+        //  printf("%lf ", PVMViC[ind+1]);
+        //  printf("%lf ", PVMViC[ind+2]);
+        //  printf("%lf\n", PVMViC[ind+3]);
+        //  }
+
+        div[ind + 0] = PVMViC[ind + 0] / PVMViC[ind + 3];
+        div[ind + 1] = PVMViC[ind + 1] / PVMViC[ind + 3];
+        div[ind + 2] = PVMViC[ind + 2] / PVMViC[ind + 3];
+        div[ind + 3] = PVMViC[ind + 3]/ PVMViC[ind + 3];
+
+        //  if(i ==0)
+        //  {
+        //      printf("depois w\n");
+        //      printf("%f ", div[ind+0]);
+        //     printf("%f ", div[ind+1]);
+        //     printf("%f ", div[ind+2]);
+        //     printf("%f\n\n", div[ind+3]);
+        //  }
+
+        div[ind + 4] = PVMViC[ind + 4] / PVMViC[ind + 7];
+        div[ind + 5] = PVMViC[ind + 5] / PVMViC[ind + 7];
+        div[ind + 6] = PVMViC[ind + 6] / PVMViC[ind + 7];
+        div[ind + 7] = PVMViC[ind + 7]/ PVMViC[ind + 7];
+
+        div[ind + 8] = PVMViC[ind + 8] / PVMViC[ind + 11];
+        div[ind + 9] = PVMViC[ind + 9] / PVMViC[ind + 11];
+        div[ind + 10] = PVMViC[ind + 10] / PVMViC[ind + 11];
+        div[ind + 11] = PVMViC[ind + 11]/ PVMViC[ind + 11];
+    }
+    //printf("tris = %d\n", numtrisPVM);
+    memcpy(PVMViC, div, numtrisPVM * 12* sizeof(float));
+    free(div);
+    return PVMViC;
+}
+
+std::tuple<float *, int>  glCullFace(int mode, float *vert, int numtris)
+{
+    float a = 0.0f;
+    int indj = 0;
+    int indi = 0;
+    float *ret = new float[numtris * 12];
+    int goodTris = numtris;
+    int i = 0;
+    for (int j = 0; j < numtris; j++)
+    {
+        indj = 12 * j;
+        a = vert[indj + 0] * vert[indj + 5] - vert[indj + 4] * vert[indj + 1]
+         + vert[indj + 4] * vert[indj + 9] - vert[indj + 8] * vert[indj + 5]
+          + vert[indj + 8] * vert[indj + 1] - vert[indj + 0] * vert[indj + 9];
+
+        a = a / 2;
+
+        if (mode == 1)
+        {
+            if (a < 0)
+            {
+                goodTris--;
+                continue;
+            }
+            indi = 12 * i;
+            ret[indi + 0] = vert[indj + 0];
+            ret[indi + 1] = vert[indj + 1];
+            ret[indi + 2] = vert[indj + 2];
+            ret[indi + 3] = vert[indj + 3];
+
+            ret[indi + 4] = vert[indj + 4];
+            ret[indi + 5] = vert[indj + 5];
+            ret[indi + 6] = vert[indj + 6];
+            ret[indi + 7] = vert[indj + 7];
+
+            ret[indi + 8] = vert[indj + 8];
+            ret[indi + 9] = vert[indj + 9];
+            ret[indi + 10] = vert[indj + 10];
+            ret[indi + 11] = vert[indj + 11];
+            i++;
+        }
+        else
+        {
+            if (a > 0)
+            {
+                goodTris--;
+                continue;
+            }
+            indi = 12 * i;
+            ret[indi + 0] = vert[indj + 0];
+            ret[indi + 1] = vert[indj + 1];
+            ret[indi + 2] = vert[indj + 2];
+            ret[indi + 3] = vert[indj + 3];
+
+            ret[indi + 4] = vert[indj + 4];
+            ret[indi + 5] = vert[indj + 5];
+            ret[indi + 6] = vert[indj + 6];
+            ret[indi + 7] = vert[indj + 7];
+
+            ret[indi + 8] = vert[indj + 8];
+            ret[indi + 9] = vert[indj + 9];
+            ret[indi + 10] = vert[indj + 10];
+            ret[indi + 11] = vert[indj + 11];
+            i++;
+        }
+    }
+
+    std::memcpy(vert, ret, goodTris * 12 * sizeof(float));
+    free(ret);
+    return std::make_tuple(vert, goodTris);
+}
 GLuint BuildTriangles(MyObj *obj_load)
 {
     GLuint VAO;
@@ -435,7 +663,7 @@ int main(int argc, char **argv)
     const char *glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    
+
     GLFWwindow *window = glfwCreateWindow(800, 600, "Triangles", NULL, NULL);
     glfwSetKeyCallback(window, KeyCallback);
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
@@ -460,7 +688,7 @@ int main(int argc, char **argv)
     (void)io;
 
     ImGui::StyleColorsDark();
-    
+
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(interface, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
@@ -487,15 +715,11 @@ int main(int argc, char **argv)
     projection_uniform = glGetUniformLocation(program, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
     model_color = glGetUniformLocation(program, "model_color");
 
-
-
-    vertex_type_uniform = glGetSubroutineUniformLocation(program, GL_VERTEX_SHADER, "vertex_shading_type");
-    no_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER, "none");
-    gourAD_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"gourAD");
-    gourADS_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"gourADS");
-    phong_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER,"phong");
-    shading_uniform = glGetUniformLocation(program, "shading_index");
-    phong_uniform = glGetUniformLocation(program, "phong");
+    no_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER, "none_v");
+    no_shade_index_F = glGetSubroutineIndex(program, GL_FRAGMENT_SHADER, "none");
+    gourAD_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER, "gourAD");
+    gourADS_shade_index = glGetSubroutineIndex(program, GL_VERTEX_SHADER, "gourADS");
+    phong_shade_index = glGetSubroutineIndex(program, GL_FRAGMENT_SHADER, "phong");
 
     GLuint VAO = BuildTriangles(obj_load);
 
@@ -505,6 +729,7 @@ int main(int argc, char **argv)
 
     camera_position_O = camera_position_c;
     camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
+    direction = camera_lookat_l;
     camera_lookat_l_O = camera_lookat_l;
     camera_up_vector_O = camera_up_vector;
 
@@ -520,97 +745,246 @@ int main(int argc, char **argv)
     //float hfov = (vfov * 16) / 9;
     float hfov = vfov;
     int shad_tipe;
+    int CloseGL = 1;
+    Matrices *mat = new Matrices();
     View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
+    mat->inicialize(camera_position_c);
+    lookAt = 0;
+    int fps = 0;
+    int showfps = 0;
+    float time = glfwGetTime();
+    GLuint VBO_close;
+    glGenBuffers(1, &VBO_close);
+
+    GLuint VAO_close;
+    glGenVertexArrays(1, &VAO_close);
+    glBindVertexArray(VAO_close);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_close);
+    glBufferData(GL_ARRAY_BUFFER, obj_load->NumTris * 12 * sizeof(float), obj_load->Vert, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    ShaderInfo shadersClose[] =
+        {
+            {GL_VERTEX_SHADER, "../../closeVert.glsl"},
+            {GL_FRAGMENT_SHADER, "../../closeFrag.glsl"},
+            {GL_NONE, NULL}};
+
+    GLuint programCL = LoadShaders(shadersClose);
+
+    //model_uniform_CL = glGetUniformLocation(programCL, "model");           // Variável da matriz "model"
+    //view_uniform_CL = glGetUniformLocation(programCL, "view");             // Variável da matriz "view" em shader_vertex.glsl
+    //projection_uniform_CL = glGetUniformLocation(programCL, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
+    model_color_CL = glGetUniformLocation(programCL, "model_color");
+
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
+        glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
         glfwMakeContextCurrent(window);
         static const float black[] = {1.0f, 1.0f, 1.0f, 1.0f};
         //glDepthMask(GL_FALSE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearBufferfv(GL_COLOR, 0, black);
+        
 
-        switch (render_mode)
+        
+
+        if (CloseGL == 0)
+        {
+            glUseProgram(program);
+            switch (shading_index)
         {
         case 0:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
+            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
             break;
-
         case 1:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourAD_shade_index);
+            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
             break;
-        default:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+        case 2:
+            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourADS_shade_index);
+            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
+            break;
+        case 3:
+            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
+            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &phong_shade_index);
             break;
         }
 
-        glUseProgram(program);
-        
-        if (ccw)
-        {
-            glFrontFace(GL_CCW);
-        }
-        else
-        {
-            glFrontFace(GL_CW);
-        }
-        if (backFaceCull)
-        {
-            glEnable(GL_CULL_FACE);
-        }
-        else
-        {
-            glDisable(GL_CULL_FACE);
-        }
-
-        if (lookAt)
-        {
-            if (translate)
+        switch (render_mode)
             {
+            case 0:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                break;
 
-                View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
-                camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
-                camera_side_vector = glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
-
+            case 1:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                break;
+            default:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+                break;
             }
-        }
-        else
-        {
-            if (translate)
+            if (ccw)
             {
-                View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
-                direction = camera_lookat_l;
+                glFrontFace(GL_CCW);
             }
             else
             {
-                camera_lookat_l = direction;
-                View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
+                glFrontFace(GL_CW);
             }
+            if (backFaceCull)
+            {
+                glEnable(GL_CULL_FACE);
+            }
+            else
+            {
+                glDisable(GL_CULL_FACE);
+            }
+
+            if (lookAt)
+            {
+                if (translate)
+                {
+                    camera_lookat_l = glm::normalize(obj_load->bbox_middle - camera_position_c);
+                    View = glm::lookAt(camera_position_c, obj_load->bbox_middle, camera_up_vector);
+                    camera_side_vector = glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
+                }
+            }
+            else
+            {
+                if (translate)
+                {
+                    View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
+                    direction = camera_lookat_l;
+                }
+                else
+                {
+                    printf("%d\n", translate);
+                    camera_lookat_l = direction;
+                    View = glm::lookAt(camera_position_c, camera_lookat_l + camera_position_c, camera_up_vector);
+                }
+            }
+            g_ScreenRatio = tan(glm::radians(hfov / 1)) / tan(glm::radians(vfov / 1));
+            Projection = glm::perspective(glm::radians(vfov), g_ScreenRatio, near, far);
+            glBindVertexArray(VAO);
+            glDrawArrays(GL_TRIANGLES, 0, NumVertices);
+            glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(View));
+            glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(Projection));
+            glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glUniform3fv(model_color, 1, glm::value_ptr(Color_model));
+        }
+        else
+        {
+            glUseProgram(programCL);
+            camera_lookat_l = direction;
+            glDisable(GL_CULL_FACE);
+            mat->position = camera_position_c;
+            mat->n = camera_lookat_l;
+            mat->v = camera_up_vector;
+            mat->u = glm::normalize(glm::cross(camera_lookat_l, camera_up_vector));
+            ViewGL = mat->view_matriz();
+            ModelGL = mat->model();
+            ProjectionGL = mat->proj_matriz(vfov, hfov, near, far);
+
+            Projection;
+            View;
+            printf("gl\n");
+            mat->print_matrix(View);
+
+            printf("cgl\n");
+
+            mat->print_matrix(ViewGL);
+
+            //mat->print_vector(mat->position);
+
+            // float *vert = obj_load->Vert;
+            // glm::vec4 v1 = glm::vec4(vert[0], vert[1], vert[2], 1.0f);
+
+            // mat->print_vector(v1);
+            // printf("\n");
+
+            
+
+            int numtrisPVM = 0;
+            float *PVMViC;
+            int flag = 1;
+
+            if (ModelGL == mat->model())
+            {
+                flag = 0;
+            }
+
+            //glm::mat4 pvmclose = ProjectionGL * ViewGL * ModelGL * V;
+
+            std::tie(PVMViC, numtrisPVM) = transformed(ProjectionGL, ViewGL, model, obj_load, flag, near, far);
+
+            float *wdiv = wdividi(PVMViC, numtrisPVM);
+            //float *culled;
+            //printf(" %d %d\n", backFaceCull, ccw);
+            // if (backFaceCull)
+            // {
+            //     std::tie(culled, numtrisPVM) = glCullFace(ccw, wdiv, numtrisPVM);
+            // }
+            // else
+            // {
+            //     culled = wdiv;
+            // }
+            glBindVertexArray(VAO_close);
+
+            //printf("%d\n", numtrisPVM);
+
+            glBindBuffer(GL_ARRAY_BUFFER, VBO_close);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, numtrisPVM * 12 * sizeof(GLfloat), wdiv);
+
+        //mat->print_vector(camera_position_c);
+
+            //glUniformMatrix4fv(view_uniform_CL, 1, GL_FALSE, glm::value_ptr(ViewGL));
+            //glUniformMatrix4fv(projection_uniform_CL, 1, GL_FALSE, glm::value_ptr(ProjectionGL));
+            //glUniformMatrix4fv(model_uniform_CL, 1, GL_FALSE, glm::value_ptr(ModelGL));
+
+            //glm::mat4 PVM = View * model;
+
+            //mat->print_matrix(PVM);
+            //std::cout<< "-> open\n";
+            //mat->print_matrix(PVMC);
+            //std::cout<< "-> close\n";
+            glUniform3fv(model_color_CL, 1, glm::value_ptr(Color_model));
+            glDrawArrays(GL_TRIANGLES, 0, numtrisPVM * 3);
         }
 
+        //mat->print_vector(mat->position);
         
-
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, NumVertices);
-
         glfwSwapBuffers(window);
         glfwPollEvents();
-        g_ScreenRatio = tan(glm::radians(hfov / 1)) / tan(glm::radians(vfov / 1));
-        Projection = glm::perspective(glm::radians(vfov), g_ScreenRatio, near, far);
 
-        glm::mat4 model = glm::mat4(1.0);
+        fps++;
 
-        glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(View));
-        glUniformMatrix4fv(projection_uniform, 1, GL_FALSE, glm::value_ptr(Projection));
-        glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform3fv(model_color, 1, glm::value_ptr(Color_model));
+        glfwSwapInterval(0);
+
+        if (glfwGetTime() - time >= 1)
+        {
+            showfps = fps / (glfwGetTime() - time);
+            fps = 0;
+            time = glfwGetTime();
+            //std::cout<< "mat:";
+            //mat->print_matrix(ModelGL);
+            //std::cout<< "\nOpen:";
+            //mat->print_matrix(model);
+        }
+        
 
         //printf("%f, %f, %f\n", Color_model.x,Color_model.y,Color_model.z);
         //printf("%d\n", shading_index);
 
-        glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, vertShades[shading_index]);
+        //glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, vertShades[shading_index]);
         //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, vertShades[shading_index]);
-        glUniform1i(shading_uniform, shading_index);
-        glUniform1i(phong_uniform,phong);
+        //glUniform1i(shading_uniform, shading_index);
+        //glUniform1i(phong_uniform, phong);
         //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, fragShades[frigging_index]);
 
         glfwMakeContextCurrent(interface);
@@ -621,11 +995,13 @@ int main(int argc, char **argv)
 
         ImGui::Begin("My window"); // create window
 
-        ImGui::Text("Application framerate (%.1f FPS)", ImGui::GetIO().Framerate);
-        ImGui::InputText("obj", filenameAux, 20);
+        ImGui::Text("Application framerate (%.d FPS)", showfps);
+        ImGui::RadioButton("OpenGL", &CloseGL, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("CloseGL", &CloseGL, 1);
         ImGui::NewLine();
         ImGui::RadioButton("Look At", &lookAt, 1);
-        ImGui::NewLine();
+        ImGui::SameLine();
         ImGui::RadioButton("Free", &lookAt, 0);
         ImGui::NewLine();
         ImGui::Text("clipping planes");
@@ -639,7 +1015,7 @@ int main(int argc, char **argv)
         ImGui::InputFloat("hfov", &hfov);
         ImGui::NewLine();
         ImGui::RadioButton("Translate", &translate, 1);
-        ImGui::NewLine();
+        ImGui::SameLine();
         ImGui::RadioButton("Rotate", &translate, 0);
         ImGui::NewLine();
         ImGui::RadioButton("X", &axis, 0);
@@ -691,7 +1067,7 @@ int main(int argc, char **argv)
             camera_up_vector = camera_up_vector_O;
         }
         ImGui::End();
-
+        glfwSwapInterval(0);
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(interface);
@@ -700,6 +1076,10 @@ int main(int argc, char **argv)
 
         glfwMakeContextCurrent(window);
     }
+
+    
+
+
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
