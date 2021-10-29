@@ -83,7 +83,6 @@ GLint shading_uniform;
 GLuint gourAD_shade_index;
 GLuint gourADS_shade_index;
 GLuint phong_shade_index;
-//GLuint *vertShades[] = {&no_shade_index, &gourAD_shade_index, &gourADS_shade_index, &phong_shade_index};
 
 glm::mat4 Projection;
 glm::mat4 View;
@@ -111,6 +110,7 @@ int axis;
 int translate = 1;
 int shading_index = 3;
 int phong = 1;
+float g_ScreenRatio = 0.0f;
 
 MyObj *obj_load = new MyObj();
 
@@ -128,6 +128,24 @@ double g_LastCursorPosX, g_LastCursorPosY;
 bool g_LeftMouseButtonPressed = false;
 bool g_RightMouseButtonPressed = false;  // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
+
+void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+{
+    // Indicamos que queremos renderizar em toda região do framebuffer. A
+    // função "glViewport" define o mapeamento das "normalized device
+    // coordinates" (NDC) para "pixel coordinates".  Essa é a operação de
+    // "Screen Mapping" ou "Viewport Mapping" vista em aula (slides 33-44 do documento "Aula_07_Transformacoes_Geometricas_3D.pdf").
+    glViewport(0, 0, width, height);
+
+    // Atualizamos também a razão que define a proporção da janela (largura /
+    // altura), a qual será utilizada na definição das matrizes de projeção,
+    // tal que não ocorra distorções durante o processo de "Screen Mapping"
+    // acima, quando NDC é mapeado para coordenadas de pixels. Veja slide 227 do documento "Aula_09_Projecoes.pdf".
+    //
+    // O cast para float é necessário pois números inteiros são arredondados ao
+    // serem divididos!
+    g_ScreenRatio = (float)width / height;
+}
 
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
@@ -422,7 +440,7 @@ GLuint LoadShaders(ShaderInfo *shaders)
     return program;
 }
 
-std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyObj *obj_load, int modelU, float near, float far)
+std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyObj *obj_load, float near, float far)
 {
     float *vert = obj_load->Vert;
     float *ret = new float[obj_load->NumTris * 12];
@@ -434,8 +452,6 @@ std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyOb
     int numtris = obj_load->NumTris;
     
     glm::mat4 pvm = P*V*M;
-
-    //pvm = glm::transpose(pvm);
 
     int i = 0;
     int indi = 0, indj = 0;
@@ -450,19 +466,10 @@ std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyOb
         glm::vec4 v1T = pvm*v1;
         glm::vec4 v2T = pvm*v2;
         glm::vec4 v3T = pvm*v3;
-        
-        // if(j==0)
-        // {
-        //     mat454->print_vector(v1T);
-        //     printf("\n");
-        // }
-        //mat454->print_vector(v2T);
-        //mat454->print_vector(v3T);
-        //printf("%f, %f, %f\n",v1T.w, v2T.w, v3T.w);
 
         if (v1T.w <= 0 || v2T.w <= 0 || v3T.w <= 0
-        //  ||   v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t 
-        //  ||     v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t
+          ||   v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t 
+          ||     v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t
         )
         {
             numtris--;
@@ -500,28 +507,11 @@ float *wdividi(float *PVMViC, int numtrisPVM)
     for (int i = 0; i < numtrisPVM; i++)
     {
         ind = 12 * i;
-        //  if(i ==0)
-        //  {
-        //  printf("antes w\n");
-        //  printf("%lf ", PVMViC[ind+0]);
-        //  printf("%lf ", PVMViC[ind+1]);
-        //  printf("%lf ", PVMViC[ind+2]);
-        //  printf("%lf\n", PVMViC[ind+3]);
-        //  }
 
         div[ind + 0] = PVMViC[ind + 0] / PVMViC[ind + 3];
         div[ind + 1] = PVMViC[ind + 1] / PVMViC[ind + 3];
         div[ind + 2] = PVMViC[ind + 2] / PVMViC[ind + 3];
         div[ind + 3] = PVMViC[ind + 3]/ PVMViC[ind + 3];
-
-        //  if(i ==0)
-        //  {
-        //      printf("depois w\n");
-        //      printf("%f ", div[ind+0]);
-        //     printf("%f ", div[ind+1]);
-        //     printf("%f ", div[ind+2]);
-        //     printf("%f\n\n", div[ind+3]);
-        //  }
 
         div[ind + 4] = PVMViC[ind + 4] / PVMViC[ind + 7];
         div[ind + 5] = PVMViC[ind + 5] / PVMViC[ind + 7];
@@ -533,7 +523,6 @@ float *wdividi(float *PVMViC, int numtrisPVM)
         div[ind + 10] = PVMViC[ind + 10] / PVMViC[ind + 11];
         div[ind + 11] = PVMViC[ind + 11]/ PVMViC[ind + 11];
     }
-    //printf("tris = %d\n", numtrisPVM);
     memcpy(PVMViC, div, numtrisPVM * 12* sizeof(float));
     free(div);
     return PVMViC;
@@ -659,6 +648,14 @@ int main(int argc, char **argv)
 {
     glfwInit();
 
+    if(argc == 1)
+    {
+        printf("nenhum arquivo carregado.\n");
+        return 0 ;
+    }
+    
+
+
     // GL 3.0 + GLSL 130
     const char *glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -668,6 +665,8 @@ int main(int argc, char **argv)
     glfwSetKeyCallback(window, KeyCallback);
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
     glfwSetCursorPosCallback(window, CursorPosCallback);
+    glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
+    FramebufferSizeCallback(window, 800, 600); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     if (window == NULL)
         return 1;
@@ -697,8 +696,8 @@ int main(int argc, char **argv)
     glfwMakeContextCurrent(window);
     glEnable(GL_DEPTH_TEST);
 
-    char *filename = "cow_up.in", filenameAux[20] = "";
-    //char *filename = "cube.in", filenameAux[20] = "";
+    
+    char *filename = argv[1];
 
     obj_load->load_obj(filename);
 
@@ -740,9 +739,8 @@ int main(int argc, char **argv)
     int render_mode = 0;
     int ccw = 1;
     int backFaceCull = 0;
-    float g_ScreenRatio = 0.0f;
+    
     float vfov = 60;
-    //float hfov = (vfov * 16) / 9;
     float hfov = vfov;
     int shad_tipe;
     int CloseGL = 1;
@@ -774,23 +772,18 @@ int main(int argc, char **argv)
 
     GLuint programCL = LoadShaders(shadersClose);
 
-    //model_uniform_CL = glGetUniformLocation(programCL, "model");           // Variável da matriz "model"
-    //view_uniform_CL = glGetUniformLocation(programCL, "view");             // Variável da matriz "view" em shader_vertex.glsl
-    //projection_uniform_CL = glGetUniformLocation(programCL, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
     model_color_CL = glGetUniformLocation(programCL, "model_color");
+
+    mat->print_vector(mat->position);
 
     while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(interface))
     {
         glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
         glfwMakeContextCurrent(window);
         static const float black[] = {1.0f, 1.0f, 1.0f, 1.0f};
-        //glDepthMask(GL_FALSE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearBufferfv(GL_COLOR, 0, black);
         
-
-        
-
         if (CloseGL == 0)
         {
             glUseProgram(program);
@@ -891,73 +884,50 @@ int main(int argc, char **argv)
             ModelGL = mat->model();
             ProjectionGL = mat->proj_matriz(vfov, hfov, near, far);
 
-            Projection;
-            View;
-            printf("gl\n");
-            mat->print_matrix(View);
-
-            printf("cgl\n");
-
-            mat->print_matrix(ViewGL);
-
-            //mat->print_vector(mat->position);
-
-            // float *vert = obj_load->Vert;
-            // glm::vec4 v1 = glm::vec4(vert[0], vert[1], vert[2], 1.0f);
-
-            // mat->print_vector(v1);
-            // printf("\n");
-
-            
-
             int numtrisPVM = 0;
             float *PVMViC;
             int flag = 1;
 
-            if (ModelGL == mat->model())
+            switch (render_mode)
             {
-                flag = 0;
+            case 0:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                break;
+
+            case 1:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                break;
+            default:
+                glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+                break;
             }
 
-            //glm::mat4 pvmclose = ProjectionGL * ViewGL * ModelGL * V;
+            //float near_C = (near + fabs(mat->position.z)) * (mat->position.z/fabs(mat->position.z));
+            //float far_C = (far + fabs(mat->position.z)) * (mat->position.z/fabs(mat->position.z));
+            float near_C = near;
+            float far_C = far;
 
-            std::tie(PVMViC, numtrisPVM) = transformed(ProjectionGL, ViewGL, model, obj_load, flag, near, far);
+            std::tie(PVMViC, numtrisPVM) = transformed(ProjectionGL, ViewGL, model, obj_load, near_C, far_C);
 
             float *wdiv = wdividi(PVMViC, numtrisPVM);
-            //float *culled;
-            //printf(" %d %d\n", backFaceCull, ccw);
-            // if (backFaceCull)
-            // {
-            //     std::tie(culled, numtrisPVM) = glCullFace(ccw, wdiv, numtrisPVM);
-            // }
-            // else
-            // {
-            //     culled = wdiv;
-            // }
+            float *culled;
+             if (backFaceCull)
+             {
+                 std::tie(culled, numtrisPVM) = glCullFace(ccw, wdiv, numtrisPVM);
+             }
+             else
+             {
+                 culled = wdiv;
+             }
             glBindVertexArray(VAO_close);
 
-            //printf("%d\n", numtrisPVM);
-
             glBindBuffer(GL_ARRAY_BUFFER, VBO_close);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, numtrisPVM * 12 * sizeof(GLfloat), wdiv);
-
-        //mat->print_vector(camera_position_c);
-
-            //glUniformMatrix4fv(view_uniform_CL, 1, GL_FALSE, glm::value_ptr(ViewGL));
-            //glUniformMatrix4fv(projection_uniform_CL, 1, GL_FALSE, glm::value_ptr(ProjectionGL));
-            //glUniformMatrix4fv(model_uniform_CL, 1, GL_FALSE, glm::value_ptr(ModelGL));
-
-            //glm::mat4 PVM = View * model;
-
-            //mat->print_matrix(PVM);
-            //std::cout<< "-> open\n";
-            //mat->print_matrix(PVMC);
-            //std::cout<< "-> close\n";
+            glBufferSubData(GL_ARRAY_BUFFER, 0, numtrisPVM * 12 * sizeof(GLfloat), culled);
             glUniform3fv(model_color_CL, 1, glm::value_ptr(Color_model));
             glDrawArrays(GL_TRIANGLES, 0, numtrisPVM * 3);
+            free(wdiv);
+  
         }
-
-        //mat->print_vector(mat->position);
         
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -971,21 +941,7 @@ int main(int argc, char **argv)
             showfps = fps / (glfwGetTime() - time);
             fps = 0;
             time = glfwGetTime();
-            //std::cout<< "mat:";
-            //mat->print_matrix(ModelGL);
-            //std::cout<< "\nOpen:";
-            //mat->print_matrix(model);
         }
-        
-
-        //printf("%f, %f, %f\n", Color_model.x,Color_model.y,Color_model.z);
-        //printf("%d\n", shading_index);
-
-        //glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, vertShades[shading_index]);
-        //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, vertShades[shading_index]);
-        //glUniform1i(shading_uniform, shading_index);
-        //glUniform1i(phong_uniform, phong);
-        //glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, fragShades[frigging_index]);
 
         glfwMakeContextCurrent(interface);
 
@@ -1077,15 +1033,10 @@ int main(int argc, char **argv)
         glfwMakeContextCurrent(window);
     }
 
-    
-
-
-
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
     glfwDestroyWindow(window);
-
     glfwTerminate();
 }
