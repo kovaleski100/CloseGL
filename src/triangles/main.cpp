@@ -129,7 +129,7 @@ bool g_LeftMouseButtonPressed = false;
 bool g_RightMouseButtonPressed = false;  // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
 
-void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
     // Indicamos que queremos renderizar em toda região do framebuffer. A
     // função "glViewport" define o mapeamento das "normalized device
@@ -450,8 +450,8 @@ std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyOb
     Matrices *mat454 = new Matrices();
 
     int numtris = obj_load->NumTris;
-    
-    glm::mat4 pvm = P*V*M;
+
+    glm::mat4 pvm = P * V * M;
 
     int i = 0;
     int indi = 0, indj = 0;
@@ -463,14 +463,11 @@ std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyOb
         glm::vec4 v2 = glm::vec4(vert[indj + 3], vert[indj + 4], vert[indj + 5], 1.0f);
         glm::vec4 v3 = glm::vec4(vert[indj + 6], vert[indj + 7], vert[indj + 8], 1.0f);
 
-        glm::vec4 v1T = pvm*v1;
-        glm::vec4 v2T = pvm*v2;
-        glm::vec4 v3T = pvm*v3;
+        glm::vec4 v1T = pvm * v1;
+        glm::vec4 v2T = pvm * v2;
+        glm::vec4 v3T = pvm * v3;
 
-        if (v1T.w <= 0 || v2T.w <= 0 || v3T.w <= 0
-          ||   v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t 
-          ||     v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t
-        )
+        if (v1T.w <= 0 || v2T.w <= 0 || v3T.w <= 0 || v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t || v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t)
         {
             numtris--;
             continue;
@@ -494,8 +491,8 @@ std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyOb
 
         i++;
     }
-    float* ret2 = new float[numtris*12];
-    memcpy(ret2, ret, numtris * 12*sizeof(float));
+    float *ret2 = new float[numtris * 12];
+    memcpy(ret2, ret, numtris * 12 * sizeof(float));
     free(ret);
     return std::make_tuple(ret2, numtris);
 }
@@ -511,24 +508,24 @@ float *wdividi(float *PVMViC, int numtrisPVM)
         div[ind + 0] = PVMViC[ind + 0] / PVMViC[ind + 3];
         div[ind + 1] = PVMViC[ind + 1] / PVMViC[ind + 3];
         div[ind + 2] = PVMViC[ind + 2] / PVMViC[ind + 3];
-        div[ind + 3] = PVMViC[ind + 3]/ PVMViC[ind + 3];
+        div[ind + 3] = PVMViC[ind + 3] / PVMViC[ind + 3];
 
         div[ind + 4] = PVMViC[ind + 4] / PVMViC[ind + 7];
         div[ind + 5] = PVMViC[ind + 5] / PVMViC[ind + 7];
         div[ind + 6] = PVMViC[ind + 6] / PVMViC[ind + 7];
-        div[ind + 7] = PVMViC[ind + 7]/ PVMViC[ind + 7];
+        div[ind + 7] = PVMViC[ind + 7] / PVMViC[ind + 7];
 
         div[ind + 8] = PVMViC[ind + 8] / PVMViC[ind + 11];
         div[ind + 9] = PVMViC[ind + 9] / PVMViC[ind + 11];
         div[ind + 10] = PVMViC[ind + 10] / PVMViC[ind + 11];
-        div[ind + 11] = PVMViC[ind + 11]/ PVMViC[ind + 11];
+        div[ind + 11] = PVMViC[ind + 11] / PVMViC[ind + 11];
     }
-    memcpy(PVMViC, div, numtrisPVM * 12* sizeof(float));
+    memcpy(PVMViC, div, numtrisPVM * 12 * sizeof(float));
     free(div);
     return PVMViC;
 }
 
-std::tuple<float *, int>  glCullFace(int mode, float *vert, int numtris)
+std::tuple<float *, int> glCullFace(int mode, float *vert, int numtris)
 {
     float a = 0.0f;
     int indj = 0;
@@ -539,9 +536,7 @@ std::tuple<float *, int>  glCullFace(int mode, float *vert, int numtris)
     for (int j = 0; j < numtris; j++)
     {
         indj = 12 * j;
-        a = vert[indj + 0] * vert[indj + 5] - vert[indj + 4] * vert[indj + 1]
-         + vert[indj + 4] * vert[indj + 9] - vert[indj + 8] * vert[indj + 5]
-          + vert[indj + 8] * vert[indj + 1] - vert[indj + 0] * vert[indj + 9];
+        a = vert[indj + 0] * vert[indj + 5] - vert[indj + 4] * vert[indj + 1] + vert[indj + 4] * vert[indj + 9] - vert[indj + 8] * vert[indj + 5] + vert[indj + 8] * vert[indj + 1] - vert[indj + 0] * vert[indj + 9];
 
         a = a / 2;
 
@@ -648,13 +643,11 @@ int main(int argc, char **argv)
 {
     glfwInit();
 
-    if(argc == 1)
+    if (argc == 1)
     {
         printf("nenhum arquivo carregado.\n");
-        return 0 ;
+        return 0;
     }
-    
-
 
     // GL 3.0 + GLSL 130
     const char *glsl_version = "#version 130";
@@ -696,7 +689,6 @@ int main(int argc, char **argv)
     glfwMakeContextCurrent(window);
     glEnable(GL_DEPTH_TEST);
 
-    
     char *filename = argv[1];
 
     obj_load->load_obj(filename);
@@ -739,7 +731,7 @@ int main(int argc, char **argv)
     int render_mode = 0;
     int ccw = 1;
     int backFaceCull = 0;
-    
+
     float vfov = 60;
     float hfov = vfov;
     int shad_tipe;
@@ -783,31 +775,31 @@ int main(int argc, char **argv)
         static const float black[] = {1.0f, 1.0f, 1.0f, 1.0f};
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearBufferfv(GL_COLOR, 0, black);
-        
+
         if (CloseGL == 0)
         {
             glUseProgram(program);
             switch (shading_index)
-        {
-        case 0:
-            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
-            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
-            break;
-        case 1:
-            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourAD_shade_index);
-            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
-            break;
-        case 2:
-            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourADS_shade_index);
-            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
-            break;
-        case 3:
-            glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
-            glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &phong_shade_index);
-            break;
-        }
+            {
+            case 0:
+                glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
+                glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
+                break;
+            case 1:
+                glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourAD_shade_index);
+                glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
+                break;
+            case 2:
+                glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &gourADS_shade_index);
+                glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &no_shade_index_F);
+                break;
+            case 3:
+                glUniformSubroutinesuiv(GL_VERTEX_SHADER, 1, &no_shade_index);
+                glUniformSubroutinesuiv(GL_FRAGMENT_SHADER, 1, &phong_shade_index);
+                break;
+            }
 
-        switch (render_mode)
+            switch (render_mode)
             {
             case 0:
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -911,14 +903,14 @@ int main(int argc, char **argv)
 
             float *wdiv = wdividi(PVMViC, numtrisPVM);
             float *culled;
-             if (backFaceCull)
-             {
-                 std::tie(culled, numtrisPVM) = glCullFace(ccw, wdiv, numtrisPVM);
-             }
-             else
-             {
-                 culled = wdiv;
-             }
+            if (backFaceCull)
+            {
+                std::tie(culled, numtrisPVM) = glCullFace(ccw, wdiv, numtrisPVM);
+            }
+            else
+            {
+                culled = wdiv;
+            }
             glBindVertexArray(VAO_close);
 
             glBindBuffer(GL_ARRAY_BUFFER, VBO_close);
@@ -926,9 +918,8 @@ int main(int argc, char **argv)
             glUniform3fv(model_color_CL, 1, glm::value_ptr(Color_model));
             glDrawArrays(GL_TRIANGLES, 0, numtrisPVM * 3);
             free(wdiv);
-  
         }
-        
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 

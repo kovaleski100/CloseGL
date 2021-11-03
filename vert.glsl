@@ -39,7 +39,7 @@ subroutine(vertex_type) void gourAD(vec4 normal, vec4 position_world)
 
     vec3 aux = (Ka * ambient_light_spectrum + Kd * light_spectrum * diffuse);
 
-    intercolor = vec4(aux.x,aux.y,aux.z,1f);
+    intercolor = vec4(aux.x, aux.y, aux.z, 1.0f);
 }
 
 subroutine(vertex_type) void gourADS(vec4 normal, vec4 position_world)
