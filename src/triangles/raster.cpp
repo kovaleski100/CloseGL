@@ -15,6 +15,27 @@
 
 #include <glm/gtc/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale, glm::perspective
 
+
+#define N_INTERPIE 16
+
+#define XCREEN 0
+#define YCREEN 1
+#define WCREEN 2
+#define XNORMAL 3
+#define YNORMAL 4
+#define ZNORMAL 5
+#define XEYE 6
+#define YEYE 7
+#define ZEYE 8
+#define ZNDC 9
+#define RCOL 10
+#define GCOL 11
+#define BCOL 12
+#define STEXT 13
+#define TTEXT 14
+#define ONE 15
+
+
 class Raster
 {
 public:
@@ -27,7 +48,7 @@ public:
     int tris;
     float near;
     float far;
-    glm::vec4 eye_pos;
+    float *eye_pos;
 
     void setDepth_Z(int w, int h)
     {
@@ -37,7 +58,7 @@ public:
     {
         this->color = glm::vec4(color, 1.0);
     }
-    void setEyePos(glm::vec4 eye)
+    void setEyePos(float *eye)
     {
         this->eye_pos = eye;
     }
@@ -92,171 +113,24 @@ public:
         free(screen);
         free(NDC);
         free(normals);
+        free(eye_pos);
     }
 
-    std::tuple<float *, int> transformed(glm::mat4 P, glm::mat4 V, glm::mat4 M, MyObj *obj_load, float near, float far)
+    void Proj_screen(glm::mat4 Proj, glm::mat4 VP, int mode, glm::mat4 VPIT)
     {
-        float *vert = obj_load->Vert;
-        float *ret = new float[obj_load->NumTris * 12];
-        float near_t = near;
-        float far_t = far;
+        float* normal_remains = new float[this->tris*12]; //cada tri tem 3 vertices em coord homo, numero máximo de resposta
+        float* world_remains = new float[this->tris*12];
+        float* eye_remains = new float[this->tris*12];
 
-        int numtris = obj_load->NumTris;
-
-        glm::mat4 pvm = P * V * M;
-
-        int i = 0;
-        int indi = 0, indj = 0;
-        for (int j = 0; j < obj_load->NumTris; j++)
-        {
-            indj = 9 * j;
-            float *vert = obj_load->Vert;
-            glm::vec4 v1 = glm::vec4(vert[indj + 0], vert[indj + 1], vert[indj + 2], 1.0f);
-            glm::vec4 v2 = glm::vec4(vert[indj + 3], vert[indj + 4], vert[indj + 5], 1.0f);
-            glm::vec4 v3 = glm::vec4(vert[indj + 6], vert[indj + 7], vert[indj + 8], 1.0f);
-
-            glm::vec4 v1T = pvm * v1;
-            glm::vec4 v2T = pvm * v2;
-            glm::vec4 v3T = pvm * v3;
-
-            if (v1T.w <= 0 || v2T.w <= 0 || v3T.w <= 0 || v1T.z <= near_t || v2T.z <= near_t || v3T.z <= near_t || v1T.z >= far_t || v2T.z >= far_t || v3T.z >= far_t)
-            {
-                numtris--;
-                continue;
-            }
-
-            indi = 12 * i;
-            ret[indi + 0] = v1T.x;
-            ret[indi + 1] = v1T.y;
-            ret[indi + 2] = v1T.z;
-            ret[indi + 3] = v1T.w;
-
-            ret[indi + 4] = v2T.x;
-            ret[indi + 5] = v2T.y;
-            ret[indi + 6] = v2T.z;
-            ret[indi + 7] = v2T.w;
-
-            ret[indi + 8] = v3T.x;
-            ret[indi + 9] = v3T.y;
-            ret[indi + 10] = v3T.z;
-            ret[indi + 11] = v3T.w;
-
-            i++;
-        }
-        float *ret2 = new float[numtris * 12];
-        memcpy(ret2, ret, numtris * 12 * sizeof(float));
-        free(ret);
-        return std::make_tuple(ret2, numtris);
-    }
-
-    float *wdividi(float *PVMViC, int numtrisPVM)
-    {
-        float *div = new float[numtrisPVM * 12];
-        int ind = 0;
-        for (int i = 0; i < numtrisPVM; i++)
-        {
-            ind = 12 * i;
-
-            div[ind + 0] = PVMViC[ind + 0] / PVMViC[ind + 3];
-            div[ind + 1] = PVMViC[ind + 1] / PVMViC[ind + 3];
-            div[ind + 2] = PVMViC[ind + 2] / PVMViC[ind + 3];
-            div[ind + 3] = PVMViC[ind + 3] / PVMViC[ind + 3];
-
-            div[ind + 4] = PVMViC[ind + 4] / PVMViC[ind + 7];
-            div[ind + 5] = PVMViC[ind + 5] / PVMViC[ind + 7];
-            div[ind + 6] = PVMViC[ind + 6] / PVMViC[ind + 7];
-            div[ind + 7] = PVMViC[ind + 7] / PVMViC[ind + 7];
-
-            div[ind + 8] = PVMViC[ind + 8] / PVMViC[ind + 11];
-            div[ind + 9] = PVMViC[ind + 9] / PVMViC[ind + 11];
-            div[ind + 10] = PVMViC[ind + 10] / PVMViC[ind + 11];
-            div[ind + 11] = PVMViC[ind + 11] / PVMViC[ind + 11];
-        }
-        memcpy(PVMViC, div, numtrisPVM * 12 * sizeof(float));
-        free(div);
-        return PVMViC;
-    }
-
-    std::tuple<float *, int> glCullFace(int mode, float *vert, int numtris)
-    {
-        float a = 0.0f;
-        int indj = 0;
-        int indi = 0;
-        float *ret = new float[numtris * 12];
-        int goodTris = numtris;
-        int i = 0;
-        for (int j = 0; j < numtris; j++)
-        {
-            indj = 12 * j;
-            a = vert[indj + 0] * vert[indj + 5] - vert[indj + 4] * vert[indj + 1] + vert[indj + 4] * vert[indj + 9] - vert[indj + 8] * vert[indj + 5] + vert[indj + 8] * vert[indj + 1] - vert[indj + 0] * vert[indj + 9];
-
-            a = a / 2;
-
-            if (mode == 1)
-            {
-                if (a < 0)
-                {
-                    goodTris--;
-                    continue;
-                }
-                indi = 12 * i;
-                ret[indi + 0] = vert[indj + 0];
-                ret[indi + 1] = vert[indj + 1];
-                ret[indi + 2] = vert[indj + 2];
-                ret[indi + 3] = vert[indj + 3];
-
-                ret[indi + 4] = vert[indj + 4];
-                ret[indi + 5] = vert[indj + 5];
-                ret[indi + 6] = vert[indj + 6];
-                ret[indi + 7] = vert[indj + 7];
-
-                ret[indi + 8] = vert[indj + 8];
-                ret[indi + 9] = vert[indj + 9];
-                ret[indi + 10] = vert[indj + 10];
-                ret[indi + 11] = vert[indj + 11];
-                i++;
-            }
-            else
-            {
-                if (a > 0)
-                {
-                    goodTris--;
-                    continue;
-                }
-                indi = 12 * i;
-                ret[indi + 0] = vert[indj + 0];
-                ret[indi + 1] = vert[indj + 1];
-                ret[indi + 2] = vert[indj + 2];
-                ret[indi + 3] = vert[indj + 3];
-
-                ret[indi + 4] = vert[indj + 4];
-                ret[indi + 5] = vert[indj + 5];
-                ret[indi + 6] = vert[indj + 6];
-                ret[indi + 7] = vert[indj + 7];
-
-                ret[indi + 8] = vert[indj + 8];
-                ret[indi + 9] = vert[indj + 9];
-                ret[indi + 10] = vert[indj + 10];
-                ret[indi + 11] = vert[indj + 11];
-                i++;
-            }
-        }
-
-        std::memcpy(vert, ret, goodTris * 12 * sizeof(float));
-        free(ret);
-        return std::make_tuple(vert, goodTris);
-    }
-    void Proj_screen(glm::mat4 Proj, glm::mat4 VP, int mode)
-    {
         int goodTris = this->tris;
         int i = 0;
         int indi = 0, indj = 0;
         for (int j = 0; j < this->tris; j++)
         {
-            indj = 9 * j;
-            glm::vec4 v1 = glm::vec4(eye_pos[indj + 0], eye_pos[indj + 1], eye_pos[indj + 2], eye_pos[indj + 3]);
-            glm::vec4 v2 = glm::vec4(eye_pos[indj + 4], eye_pos[indj + 5], eye_pos[indj + 6], eye_pos[indj + 7]);
-            glm::vec4 v3 = glm::vec4(eye_pos[indj + 8], eye_pos[indj + 9], eye_pos[indj + 10], eye_pos[indj + 11]);
+            indj = 12 * j;
+            glm::vec4 v1 = glm::vec4(this->eye_pos[indj + 0], this->eye_pos[indj + 1], this->eye_pos[indj + 2], this->eye_pos[indj + 3]);
+            glm::vec4 v2 = glm::vec4(this->eye_pos[indj + 4], this->eye_pos[indj + 5], this->eye_pos[indj + 6], this->eye_pos[indj + 7]);
+            glm::vec4 v3 = glm::vec4(this->eye_pos[indj + 8], this->eye_pos[indj + 9], this->eye_pos[indj + 10], this->eye_pos[indj + 11]);
 
             glm::vec4 v1T = Proj * v1;
             glm::vec4 v2T = Proj * v2;
@@ -286,6 +160,122 @@ public:
                     goodTris--;
                     continue;
             }
+
+            glm::vec4 n1 = VPIT * glm::vec4(this->normals[indj + 0], this->normals[indj + 1], this->normals[indj + 2], this->normals[indj + 3]);
+            glm::vec4 n2 = VPIT * glm::vec4(this->normals[indj + 4], this->normals[indj + 5], this->normals[indj + 6], this->normals[indj + 7]);
+            glm::vec4 n3 = VPIT * glm::vec4(this->normals[indj + 8], this->normals[indj + 9], this->normals[indj + 10], this->normals[indj + 11]);
+
+            indi = 12*i;
+            normal_remains[indi + 0] = n1.x;
+            normal_remains[indi + 1] = n1.y;
+            normal_remains[indi + 2] = n1.z;
+            normal_remains[indi + 3] = n1.w;
+            normal_remains[indi + 4] = n2.x;
+            normal_remains[indi + 5] = n2.y;
+            normal_remains[indi + 6] = n2.z;
+            normal_remains[indi + 7] = n2.w;
+            normal_remains[indi + 8] = n3.x;
+            normal_remains[indi + 9] = n3.y;
+            normal_remains[indi + 10] = n3.z;
+            normal_remains[indi + 11] = n3.w;
+            //guardamos as coord de mundo dos triangulos sobreviventes
+            world_remains[indi + 0] = this->world[indj+0];
+            world_remains[indi + 1] = this->world[indj+1];
+            world_remains[indi + 2] = this->world[indj+2];
+            world_remains[indi + 3] = this->world[indj+3];
+            world_remains[indi + 4] = this->world[indj+4];
+            world_remains[indi + 5] = this->world[indj+5];
+            world_remains[indi + 6] = this->world[indj+6];
+            world_remains[indi + 7] = this->world[indj+7];
+            world_remains[indi + 8] = this->world[indj+8];
+            world_remains[indi + 9] = this->world[indj+9];
+            world_remains[indi + 10] = this->world[indj+10];
+            world_remains[indi + 11] = this->world[indj+11];
+            //guardamos os eye coord sobreviventes tbm
+            eye_remains[indi + 0] = this->eye_pos[indj+0];
+            eye_remains[indi + 1] = this->eye_pos[indj+1];
+            eye_remains[indi + 2] = this->eye_pos[indj+2];
+            eye_remains[indi + 3] = this->eye_pos[indj+3];
+            eye_remains[indi + 4] = this->eye_pos[indj+4];
+            eye_remains[indi + 5] = this->eye_pos[indj+5];
+            eye_remains[indi + 6] = this->eye_pos[indj+6];
+            eye_remains[indi + 7] = this->eye_pos[indj+7];
+            eye_remains[indi + 8] = this->eye_pos[indj+8];
+            eye_remains[indi + 9] = this->eye_pos[indj+9];
+            eye_remains[indi + 10] = this->eye_pos[indj+10];
+            eye_remains[indi + 11] = this->eye_pos[indj+11];
+            
+            glm::vec4 v1s = VP * v1T;
+            glm::vec4 v2s = VP * v2T;
+            glm::vec4 v3s = VP * v3T;
+            
+            this->screen[indi + 0] = v1s.x/v1s.w; //divide x y e z por w e mantem o w ´paara uso na interpolação
+            this->screen[indi + 1] = v1s.y/v1s.w; //divisão perspectiva
+            this->screen[indi + 2] = v1s.z/v1s.w;
+            this->screen[indi + 3] = v1s.w;
+            this->screen[indi + 4] = v2s.x/v2s.w;
+            this->screen[indi + 5] = v2s.y/v2s.w;
+            this->screen[indi + 6] = v2s.z/v2s.w;
+            this->screen[indi + 7] = v2s.w;
+            this->screen[indi + 8] = v3s.x/v3s.w;
+            this->screen[indi + 9] = v3s.y/v3s.w;
+            this->screen[indi + 10] = v3s.z/v3s.w;
+            this->screen[indi + 11] = v3s.w;
+
+            indi = 3*j;
+            this->NDC[indi+0] = v1T.z/v1T.w;
+            this->NDC[indi+1] = v2T.z/v2T.w;
+            this->NDC[indi+2] = v3T.z/v3T.w;
+
+            j++;            
+        }
+        free(this->normals);
+        free(this->world);
+        free(this->eye_pos);
+
+        this->tris = goodTris;
+
+        this->normals = new float[goodTris];
+        this->world = new float[goodTris];
+        this->eye_pos = new float[goodTris];
+
+        std::memcpy(this->normals, normal_remains, this->tris*12*sizeof(float));
+        std::memcpy(this->eye_pos, eye_remains, this->tris*12*sizeof(float));
+        std::memcpy(this->world, world_remains, this->tris*12*sizeof(float));
+
+        free(world_remains);
+        free(eye_remains);
+        free(normal_remains);
+    }
+
+    void getEye(glm::mat4 MV)
+    {
+        this->eye_pos = new float[this->tris*12];
+
+        int indi = 0;
+        for(int i =0; i< this->tris; i++)
+        {
+            indi = 12*i;
+            glm::vec4 v1 = glm::vec4(this->world[indi + 0], this->world[indi + 1], this->world[indi + 2], this->world[indi + 3]);
+            glm::vec4 v2 = glm::vec4(this->world[indi + 4], this->world[indi + 5], this->world[indi + 6], this->world[indi + 7]);
+            glm::vec4 v3 = glm::vec4(this->world[indi + 8], this->world[indi + 9], this->world[indi + 10], this->world[indi + 11]);
+
+            glm::vec4 v1l = MV * v1;
+            glm::vec4 v2l = MV * v2;
+            glm::vec4 v3l = MV * v3;
+
+            this->eye_pos[indi + 0] = v1l.x;
+            this->eye_pos[indi + 1] = v1l.y;
+            this->eye_pos[indi + 2] = v1l.z;
+            this->eye_pos[indi + 3] = v1l.w;
+            this->eye_pos[indi + 4] = v2l.x;
+            this->eye_pos[indi + 5] = v2l.y;
+            this->eye_pos[indi + 6] = v2l.z;
+            this->eye_pos[indi + 7] = v2l.w;
+            this->eye_pos[indi + 8] = v3l.x;
+            this->eye_pos[indi + 9] = v3l.y;
+            this->eye_pos[indi + 10] = v3l.z;
+            this->eye_pos[indi + 11] = v3l.w;
         }
     }
 };
